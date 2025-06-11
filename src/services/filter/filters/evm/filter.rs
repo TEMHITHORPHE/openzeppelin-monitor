@@ -888,7 +888,8 @@ mod tests {
 
 	use super::*;
 	use alloy::primitives::{Address, Bytes, B256, U256};
-	use ethabi::{Function, Param, ParamType};
+	use alloy_dyn_abi::{DynSolValue, JsonAbiExt};
+	use alloy_json_abi::{Function, Param};
 	use serde_json::json;
 	use std::str::FromStr;
 
@@ -1659,32 +1660,34 @@ mod tests {
 			inputs: vec![
 				Param {
 					name: "recipient".to_string(),
-					kind: ParamType::Address,
+					ty: "address".to_string(),
+					components: vec![],
 					internal_type: None,
 				},
 				Param {
 					name: "amount".to_string(),
-					kind: ParamType::Uint(256),
+					ty: "uint256".to_string(),
+					components: vec![],
 					internal_type: None,
 				},
 			],
 			outputs: vec![Param {
 				name: "".to_string(),
-				kind: ParamType::Bool,
+				ty: "bool".to_string(),
+				components: vec![],
 				internal_type: None,
 			}],
-			constant: None,
-			state_mutability: ethabi::StateMutability::NonPayable,
+			state_mutability: alloy_json_abi::StateMutability::NonPayable,
 		};
 
 		let params = vec![
-			ethabi::Token::Address(
-				ethabi::Address::from_str("0x0000000000000000000000000000000000004321").unwrap(),
+			DynSolValue::Address(
+				Address::from_str("0x0000000000000000000000000000000000004321").unwrap(),
 			),
-			ethabi::Token::Uint(ethabi::Uint::from(1000)),
+			DynSolValue::Uint(U256::from(1000), 256),
 		];
 
-		let encoded = function.encode_input(&params).unwrap();
+		let encoded = function.abi_encode_input(&params).unwrap();
 		let transaction = TransactionBuilder::new()
 			.from(Address::from_str("0x0000000000000000000000000000000000001234").unwrap())
 			.to(Address::from_str("0x0000000000000000000000000000000000004321").unwrap())
@@ -1742,33 +1745,35 @@ mod tests {
 			inputs: vec![
 				Param {
 					name: "recipient".to_string(),
-					kind: ParamType::Address,
+					ty: "address".to_string(),
+					components: vec![],
 					internal_type: None,
 				},
 				Param {
 					name: "amount".to_string(),
-					kind: ParamType::Uint(256),
+					ty: "uint256".to_string(),
+					components: vec![],
 					internal_type: None,
 				},
 			],
 			outputs: vec![Param {
 				name: "".to_string(),
-				kind: ParamType::Bool,
+				ty: "bool".to_string(),
+				components: vec![],
 				internal_type: None,
 			}],
-			constant: None,
-			state_mutability: ethabi::StateMutability::NonPayable,
+			state_mutability: alloy_json_abi::StateMutability::NonPayable,
 		};
 
 		// Test with amount > 500 (should match)
 		let params = vec![
-			ethabi::Token::Address(
-				ethabi::Address::from_str("0x0000000000000000000000000000000000004321").unwrap(),
+			DynSolValue::Address(
+				Address::from_str("0x0000000000000000000000000000000000004321").unwrap(),
 			),
-			ethabi::Token::Uint(ethabi::Uint::from(1000)),
+			DynSolValue::Uint(U256::from(1000), 256),
 		];
 
-		let encoded = function.encode_input(&params).unwrap();
+		let encoded = function.abi_encode_input(&params).unwrap();
 		let transaction = TransactionBuilder::new()
 			.to(Address::from_str("0x0000000000000000000000000000000000004321").unwrap())
 			.input(Bytes(encoded.into()))
@@ -1795,13 +1800,13 @@ mod tests {
 		}
 
 		let params = vec![
-			ethabi::Token::Address(
-				ethabi::Address::from_str("0x0000000000000000000000000000000000004321").unwrap(),
+			DynSolValue::Address(
+				Address::from_str("0x0000000000000000000000000000000000004321").unwrap(),
 			),
-			ethabi::Token::Uint(ethabi::Uint::from(500)),
+			DynSolValue::Uint(U256::from(500), 256),
 		];
 
-		let encoded = function.encode_input(&params).unwrap();
+		let encoded = function.abi_encode_input(&params).unwrap();
 		let transaction = TransactionBuilder::new()
 			.to(Address::from_str("0x0000000000000000000000000000000000004321").unwrap())
 			.input(Bytes(encoded.into()))
@@ -1852,32 +1857,34 @@ mod tests {
 			inputs: vec![
 				Param {
 					name: "recipient".to_string(),
-					kind: ParamType::Address,
+					ty: "address".to_string(),
+					components: vec![],
 					internal_type: None,
 				},
 				Param {
 					name: "amount".to_string(),
-					kind: ParamType::Uint(256),
+					ty: "uint256".to_string(),
+					components: vec![],
 					internal_type: None,
 				},
 			],
 			outputs: vec![Param {
 				name: "".to_string(),
-				kind: ParamType::Bool,
+				ty: "bool".to_string(),
+				components: vec![],
 				internal_type: None,
 			}],
-			constant: None,
-			state_mutability: ethabi::StateMutability::NonPayable,
+			state_mutability: alloy_json_abi::StateMutability::NonPayable,
 		};
 
 		let params = vec![
-			ethabi::Token::Address(
-				ethabi::Address::from_str("0x0000000000000000000000000000000000004321").unwrap(),
+			DynSolValue::Address(
+				Address::from_str("0x0000000000000000000000000000000000004321").unwrap(),
 			),
-			ethabi::Token::Uint(ethabi::Uint::from(1000)),
+			DynSolValue::Uint(U256::from(1000), 256),
 		];
 
-		let encoded = function.encode_input(&params).unwrap();
+		let encoded = function.abi_encode_input(&params).unwrap();
 		let transaction = TransactionBuilder::new()
 			.to(Address::from_str("0x0000000000000000000000000000000000001234").unwrap())
 			.input(Bytes(encoded.into()))
