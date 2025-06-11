@@ -8,9 +8,9 @@
 //! - ABI-based decoding of function calls and events
 
 use alloy::primitives::U64;
-use anyhow::Context;
+use alloy_dyn_abi::{DynSolType, DynSolValue};
+use alloy_json_abi::{AbiItem, JsonAbi};
 use async_trait::async_trait;
-use ethabi::Contract;
 use std::marker::PhantomData;
 use tracing::instrument;
 
@@ -26,7 +26,7 @@ use crate::{
 		filter::{
 			evm_helpers::{
 				are_same_address, are_same_signature, b256_to_string, format_token_value,
-				h160_to_string, h256_to_string, normalize_address,
+				h160_to_string, normalize_address,
 			},
 			expression::{self, EvaluationError},
 			filters::evm::evaluator::EVMConditionEvaluator,
@@ -219,17 +219,18 @@ impl<T> EVMBlockFilter<T> {
 					.find(|(address, _)| are_same_address(address, &monitored_addr.address))
 				{
 					// Create contract object from ABI
-					let contract = match Contract::load(abi.to_string().as_bytes()) {
-						Ok(c) => c,
-						Err(e) => {
-							FilterError::internal_error(
-								format!("Failed to parse ABI: {}", e),
-								None,
-								None,
-							);
-							return;
-						}
-					};
+					let contract =
+						match serde_json::from_slice::<JsonAbi>(abi.to_string().as_bytes()) {
+							Ok(c) => c,
+							Err(e) => {
+								FilterError::internal_error(
+									format!("Failed to parse ABI for matching function: {}", e),
+									None,
+									None,
+								);
+								return;
+							}
+						};
 
 					// Get the function selector (first 4 bytes of input data)
 					if input_data.0.len() >= 4 {
@@ -238,7 +239,7 @@ impl<T> EVMBlockFilter<T> {
 						// Try to find matching function in ABI
 						if let Some(function) = contract
 							.functions()
-							.find(|f| f.short_signature().as_slice() == selector)
+							.find(|f| f.selector().as_slice() == selector)
 						{
 							let function_signature_with_params = format!(
 								"{}({})",
@@ -246,8 +247,8 @@ impl<T> EVMBlockFilter<T> {
 								function
 									.inputs
 									.iter()
-									.map(|p| p.kind.to_string())
-									.collect::<Vec<String>>()
+									.map(|param| param.selector_type())
+									.collect::<Vec<_>>()
 									.join(",")
 							);
 
@@ -257,16 +258,28 @@ impl<T> EVMBlockFilter<T> {
 									&condition.signature,
 									&function_signature_with_params,
 								) {
-									let decoded = function
-										.decode_input(&input_data.0[4..])
-										.unwrap_or_else(|e| {
-											FilterError::internal_error(
-												format!("Failed to decode function input: {}", e),
-												None,
-												None,
-											);
-											vec![]
-										});
+									// Parse param types into DynSolType
+									let types: Vec<DynSolType> = function
+										.inputs
+										.iter()
+										.map(|p| p.selector_type().parse::<DynSolType>().unwrap())
+										.collect();
+
+									// Get bytes, drop selector
+									let mut raw = input_data.0.to_vec();
+									let params_blob = raw.split_off(4);
+
+									// Decode all inputs at once
+									let func_type = DynSolType::Tuple(types.clone());
+									let decoded_all = func_type
+										.abi_decode_params(&params_blob)
+										.expect("ABI decode failed");
+
+									// Unpack into individual arguments
+									let decoded: Vec<DynSolValue> = match decoded_all {
+										DynSolValue::Tuple(vals) => vals,
+										val => vec![val],
+									};
 
 									let params: Vec<EVMMatchParamEntry> = function
 										.inputs
@@ -275,7 +288,7 @@ impl<T> EVMBlockFilter<T> {
 										.map(|(input, value)| EVMMatchParamEntry {
 											name: input.name.clone(),
 											value: format_token_value(value),
-											kind: input.kind.to_string(),
+											kind: input.ty.to_string(),
 											indexed: false,
 										})
 										.collect();
@@ -297,7 +310,7 @@ impl<T> EVMBlockFilter<T> {
 														args: Some(params.clone()),
 														hex_signature: Some(format!(
 															"0x{}",
-															hex::encode(function.short_signature())
+															hex::encode(function.signature())
 														)),
 													});
 												}
@@ -324,7 +337,7 @@ impl<T> EVMBlockFilter<T> {
 												signature: function_signature_with_params.clone(),
 												args: Some(params.clone()),
 												hex_signature: Some(hex::encode(
-													function.short_signature(),
+													function.signature(),
 												)),
 											});
 										}
@@ -493,66 +506,92 @@ impl<T> EVMBlockFilter<T> {
 	) -> Option<EVMMatchParamsMap> {
 		// Create contract object from ABI
 		let contract = match abi {
-			ContractSpec::EVM(evm_spec) => Contract::load(evm_spec.to_string().as_bytes())
-				.with_context(|| "Failed to parse ABI")
-				.ok()?,
+			ContractSpec::EVM(evm_spec) => {
+				match serde_json::from_slice::<JsonAbi>(evm_spec.to_string().as_bytes()) {
+					Ok(c) => c,
+					Err(e) => {
+						FilterError::internal_error(
+							format!("Failed to parse ABI for decoding events: {}", e),
+							None,
+							None,
+						);
+						return None;
+					}
+				}
+			}
 			_ => return None,
 		};
 
-		let decoded_log = contract
-			.events()
-			.find(|event| h256_to_string(event.signature()) == b256_to_string(log.topics[0]))
+		// Find matching event in contract ABI
+		contract
+			.items()
+			.filter_map(|item| match item {
+				AbiItem::Event(evt) => Some(evt),
+				_ => None,
+			})
+			.find(|event| event.selector() == log.topics[0]) // matching against the first topic using B256
 			.and_then(|event| {
-				event
-					.parse_log(ethabi::RawLog {
-						topics: log
-							.topics
-							.iter()
-							.map(|t| ethabi::Hash::from_slice(t.as_slice()))
-							.collect(),
-						data: log.data.0.to_vec(),
-					})
-					.ok()
-					.map(|parsed| {
-						let event_params_map = EVMMatchParamsMap {
-							signature: format!(
-								"{}({})",
-								event.name,
-								event
-									.inputs
-									.iter()
-									.map(|p| p.kind.to_string())
-									.collect::<Vec<String>>()
-									.join(",")
-							),
-							args: Some(
-								event
-									.inputs
-									.iter()
-									.filter_map(|input| {
-										parsed
-											.params
-											.iter()
-											.find(|param| param.name == input.name)
-											.map(|param| EVMMatchParamEntry {
-												name: input.name.clone(),
-												value: format_token_value(&param.value),
-												kind: input.kind.to_string(),
-												indexed: input.indexed,
-											})
-									})
-									.collect(),
-							),
-							hex_signature: Some(h256_to_string(event.signature())),
-						};
-						event_params_map
-					})
-			});
+				let mut decoded_params = Vec::new();
 
-		decoded_log
+				// Decode indexed parameters from topics (skip first topic which is event signature)
+				for (i, param) in event.inputs.iter().filter(|p| p.indexed).enumerate() {
+					println!("param: {:?}", param);
+					let topic = log.topics.get(i + 1)?;
+					let param_type = param.selector_type().parse::<DynSolType>().ok()?;
+					let decoded_value = param_type.abi_decode(&topic.0).ok()?;
+
+					decoded_params.push(EVMMatchParamEntry {
+						name: param.name.clone(),
+						value: format_token_value(&decoded_value),
+						kind: param.ty.to_string(),
+						indexed: true,
+					});
+				}
+
+				// Decode non-indexed parameters from data
+				let non_indexed: Vec<_> = event.inputs.iter().filter(|p| !p.indexed).collect();
+				if !non_indexed.is_empty() {
+					let types: Vec<DynSolType> = non_indexed.iter()
+						.map(|p| p.selector_type().parse::<DynSolType>())
+						.collect::<Result<Vec<_>, _>>().ok()?;
+
+					let decoded_data = DynSolType::Tuple(types).abi_decode(&log.data.0).ok()?;
+					let values = match decoded_data {
+						DynSolValue::Tuple(vals) => vals,
+						val => vec![val],
+					};
+
+					decoded_params.extend(
+						non_indexed.iter().zip(values.iter()).map(|(param, value)| {
+							EVMMatchParamEntry {
+								name: param.name.clone(),
+								value: format_token_value(value),
+								kind: param.ty.to_string(),
+								indexed: false,
+							}
+						})
+					);
+				}
+
+				// Sort parameters by their original order in the ABI
+				decoded_params.sort_by_key(|param| {
+					event.inputs.iter().position(|input| input.name == param.name).unwrap_or(usize::MAX)
+				});
+
+				Some(EVMMatchParamsMap {
+					signature: format!(
+						"{}({})",
+						event.name,
+						event.inputs.iter().map(|p| p.ty.to_string()).collect::<Vec<_>>().join(",")
+					),
+					args: Some(decoded_params),
+					hex_signature: Some(format!("0x{}", hex::encode(event.selector()))),
+				})
+			})
 	}
 
 	/// Checks if a monitor has any transaction conditions that require a receipt
+	/// TODO: add rustdoc here
 	fn needs_receipt(&self, monitor: &Monitor, logs: &[EVMReceiptLog]) -> bool {
 		monitor
 			.match_conditions
