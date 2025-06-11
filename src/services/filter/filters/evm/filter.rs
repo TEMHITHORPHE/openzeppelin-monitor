@@ -7,7 +7,7 @@
 //! - Event log processing and filtering
 //! - ABI-based decoding of function calls and events
 
-use alloy::primitives::U64;
+use alloy::primitives::{keccak256, U64};
 use alloy_dyn_abi::{DynSolType, DynSolValue};
 use alloy_json_abi::{AbiItem, JsonAbi};
 use async_trait::async_trait;
@@ -310,7 +310,11 @@ impl<T> EVMBlockFilter<T> {
 														args: Some(params.clone()),
 														hex_signature: Some(format!(
 															"0x{}",
-															hex::encode(function.signature())
+															hex::encode(
+																&keccak256(
+																	function.signature().as_bytes()
+																)[..4]
+															)
 														)),
 													});
 												}
@@ -337,7 +341,8 @@ impl<T> EVMBlockFilter<T> {
 												signature: function_signature_with_params.clone(),
 												args: Some(params.clone()),
 												hex_signature: Some(hex::encode(
-													function.signature(),
+													&keccak256(function.signature().as_bytes())
+														[..4],
 												)),
 											});
 										}
