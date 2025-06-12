@@ -192,280 +192,296 @@ pub fn string_to_i256(value_str: &str) -> Result<I256, String> {
 	}
 }
 
-// #[cfg(test)]
-// mod tests {
-// 	use super::*;
-// 	use alloy::primitives::{hex, Address, B256};
-// 	use ethabi::Token;
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use alloy::primitives::{hex, Address, B256};
 
-// 	#[test]
-// 	fn test_h256_to_string() {
-// 		let hash_bytes =
-// 			hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
-// 				.unwrap();
-// 		let hash = Hash::from_slice(&hash_bytes);
-// 		let result = h256_to_string(hash);
-// 		assert_eq!(
-// 			result,
-// 			"0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-// 		);
-// 	}
+	#[test]
+	fn test_b256_to_string() {
+		let hash_bytes =
+			hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+				.unwrap();
+		let hash = B256::from_slice(&hash_bytes);
+		let result = b256_to_string(hash);
+		assert_eq!(
+			result,
+			"0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+		);
+	}
 
-// 	#[test]
-// 	fn test_b256_to_string() {
-// 		let hash_bytes =
-// 			hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
-// 				.unwrap();
-// 		let hash = B256::from_slice(&hash_bytes);
-// 		let result = b256_to_string(hash);
-// 		assert_eq!(
-// 			result,
-// 			"0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-// 		);
-// 	}
+	#[test]
+	fn test_string_to_h256() {
+		let hash_str = "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+		let result = string_to_h256(hash_str).unwrap();
+		assert_eq!(
+			b256_to_string(result),
+			"0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+		);
 
-// 	#[test]
-// 	fn test_string_to_h256() {
-// 		let hash_str = "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-// 		let result = string_to_h256(hash_str).unwrap();
-// 		assert_eq!(
-// 			b256_to_string(result),
-// 			"0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-// 		);
+		// Test without 0x prefix
+		let hash_str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+		let result = string_to_h256(hash_str).unwrap();
+		assert_eq!(
+			b256_to_string(result),
+			"0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+		);
 
-// 		// Test without 0x prefix
-// 		let hash_str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-// 		let result = string_to_h256(hash_str).unwrap();
-// 		assert_eq!(
-// 			b256_to_string(result),
-// 			"0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-// 		);
+		// Test invalid hex string
+		let result = string_to_h256("invalid_hex");
+		assert!(result.is_err());
+	}
 
-// 		// Test invalid hex string
-// 		let result = string_to_h256("invalid_hex");
-// 		assert!(result.is_err());
-// 	}
+	#[test]
+	fn test_h160_to_string() {
+		let address_bytes = hex::decode("0123456789abcdef0123456789abcdef01234567").unwrap();
+		let address = Address::from_slice(&address_bytes);
+		let result = h160_to_string(address);
+		assert_eq!(result, "0x0123456789abcdef0123456789abcdef01234567");
+	}
 
-// 	#[test]
-// 	fn test_h160_to_string() {
-// 		let address_bytes = hex::decode("0123456789abcdef0123456789abcdef01234567").unwrap();
-// 		let address = Address::from_slice(&address_bytes);
-// 		let result = h160_to_string(address);
-// 		assert_eq!(result, "0x0123456789abcdef0123456789abcdef01234567");
-// 	}
+	#[test]
+	fn test_string_to_u256() {
+		// --- Helpers ---
+		fn u256_hex_val(hex_str: &str) -> U256 {
+			U256::from_str_radix(hex_str.strip_prefix("0x").unwrap_or(hex_str), 16).unwrap()
+		}
 
-// 	#[test]
-// 	fn test_string_to_u256() {
-// 		// --- Helpers ---
-// 		fn u256_hex_val(hex_str: &str) -> U256 {
-// 			U256::from_str_radix(hex_str.strip_prefix("0x").unwrap_or(hex_str), 16).unwrap()
-// 		}
+		// --- Constants for testing ---
+		const U256_MAX_STR: &str =
+			"115792089237316195423570985008687907853269984665640564039457584007913129639935";
+		const U256_MAX_HEX_STR: &str =
+			"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+		const U256_OVERFLOW_STR: &str =
+			"115792089237316195423570985008687907853269984665640564039457584007913129639936";
+		const U256_HEX_OVERFLOW_STR: &str =
+			"0x10000000000000000000000000000000000000000000000000000000000000000";
+		const ZERO_STR: &str = "0";
+		const SMALL_NUM_STR: &str = "123";
+		const SMALL_NUM_HEX_STR: &str = "0x7b"; // 123 in hex
 
-// 		// --- Constants for testing ---
-// 		const U256_MAX_STR: &str =
-// 			"115792089237316195423570985008687907853269984665640564039457584007913129639935";
-// 		const U256_MAX_HEX_STR: &str =
-// 			"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-// 		const U256_OVERFLOW_STR: &str =
-// 			"115792089237316195423570985008687907853269984665640564039457584007913129639936";
-// 		const U256_HEX_OVERFLOW_STR: &str =
-// 			"0x10000000000000000000000000000000000000000000000000000000000000000";
-// 		const ZERO_STR: &str = "0";
-// 		const SMALL_NUM_STR: &str = "123";
-// 		const SMALL_NUM_HEX_STR: &str = "0x7b"; // 123 in hex
+		// --- Valid numbers cases ---
+		assert_eq!(string_to_u256(ZERO_STR), Ok(U256::ZERO));
+		assert_eq!(
+			string_to_u256(SMALL_NUM_STR),
+			Ok(U256::from_str(SMALL_NUM_STR).unwrap())
+		);
+		assert_eq!(string_to_u256(U256_MAX_STR), Ok(U256::MAX));
 
-// 		// --- Valid numbers cases ---
-// 		assert_eq!(string_to_u256(ZERO_STR), Ok(U256::ZERO));
-// 		assert_eq!(
-// 			string_to_u256(SMALL_NUM_STR),
-// 			Ok(U256::from_str(SMALL_NUM_STR).unwrap())
-// 		);
-// 		assert_eq!(string_to_u256(U256_MAX_STR), Ok(U256::MAX));
+		// --- Valid hex cases ---
+		assert_eq!(string_to_u256("0x0"), Ok(U256::ZERO));
+		assert_eq!(string_to_u256("0X0"), Ok(U256::ZERO)); // Case insensitive
+		assert_eq!(
+			string_to_u256(SMALL_NUM_HEX_STR),
+			Ok(u256_hex_val(SMALL_NUM_HEX_STR))
+		);
+		assert_eq!(string_to_u256(U256_MAX_HEX_STR), Ok(U256::MAX));
 
-// 		// --- Valid hex cases ---
-// 		assert_eq!(string_to_u256("0x0"), Ok(U256::ZERO));
-// 		assert_eq!(string_to_u256("0X0"), Ok(U256::ZERO)); // Case insensitive
-// 		assert_eq!(
-// 			string_to_u256(SMALL_NUM_HEX_STR),
-// 			Ok(u256_hex_val(SMALL_NUM_HEX_STR))
-// 		);
-// 		assert_eq!(string_to_u256(U256_MAX_HEX_STR), Ok(U256::MAX));
+		// --- Invalid cases ---
+		assert!(string_to_u256("").is_err());
+		assert!(string_to_u256("   ").is_err());
+		assert!(string_to_u256("0x").is_err());
+		assert!(string_to_u256("abc").is_err());
+		assert!(string_to_u256("-123").is_err());
+		assert!(string_to_u256(U256_OVERFLOW_STR).is_err());
+		assert!(string_to_u256(U256_HEX_OVERFLOW_STR).is_err());
+	}
 
-// 		// --- Invalid cases ---
-// 		assert!(string_to_u256("").is_err());
-// 		assert!(string_to_u256("   ").is_err());
-// 		assert!(string_to_u256("0x").is_err());
-// 		assert!(string_to_u256("abc").is_err());
-// 		assert!(string_to_u256("-123").is_err());
-// 		assert!(string_to_u256(U256_OVERFLOW_STR).is_err());
-// 		assert!(string_to_u256(U256_HEX_OVERFLOW_STR).is_err());
-// 	}
+	#[test]
+	fn test_string_to_i256() {
+		// --- Constants for testing ---
+		const I256_MAX_STR: &str =
+			"57896044618658097711785492504343953926634992332820282019728792003956564819967";
+		const I256_MAX_HEX_STR: &str =
+			"0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+		const I256_MIN_STR: &str =
+			"-57896044618658097711785492504343953926634992332820282019728792003956564819968";
+		const I256_MIN_HEX_STR: &str =
+			"0x8000000000000000000000000000000000000000000000000000000000000000";
+		const I256_POS_OVERFLOW_STR: &str =
+			"57896044618658097711785492504343953926634992332820282019728792003956564819968";
+		const I256_NEG_OVERFLOW_STR: &str =
+			"-57896044618658097711785492504343953926634992332820282019728792003956564819969";
+		const I256_HEX_OVERFLOW_STR: &str =
+			"0x10000000000000000000000000000000000000000000000000000000000000000";
 
-// 	#[test]
-// 	fn test_string_to_i256() {
-// 		// --- Constants for testing ---
-// 		const I256_MAX_STR: &str =
-// 			"57896044618658097711785492504343953926634992332820282019728792003956564819967";
-// 		const I256_MAX_HEX_STR: &str =
-// 			"0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
-// 		const I256_MIN_STR: &str =
-// 			"-57896044618658097711785492504343953926634992332820282019728792003956564819968";
-// 		const I256_MIN_HEX_STR: &str =
-// 			"0x8000000000000000000000000000000000000000000000000000000000000000";
-// 		const I256_POS_OVERFLOW_STR: &str =
-// 			"57896044618658097711785492504343953926634992332820282019728792003956564819968";
-// 		const I256_NEG_OVERFLOW_STR: &str =
-// 			"-57896044618658097711785492504343953926634992332820282019728792003956564819969";
-// 		const I256_HEX_OVERFLOW_STR: &str =
-// 			"0x10000000000000000000000000000000000000000000000000000000000000000";
+		// --- Valid numbers cases ---
+		assert_eq!(string_to_i256("0"), Ok(I256::ZERO));
+		assert_eq!(string_to_i256("123"), Ok(I256::from_str("123").unwrap()));
+		assert_eq!(string_to_i256(I256_MAX_STR), Ok(I256::MAX));
+		assert_eq!(string_to_i256(I256_MIN_STR), Ok(I256::MIN));
+		assert_eq!(string_to_i256("-123"), Ok(I256::from_str("-123").unwrap()));
+		assert_eq!(string_to_i256("-0"), Ok(I256::ZERO));
 
-// 		// --- Valid numbers cases ---
-// 		assert_eq!(string_to_i256("0"), Ok(I256::ZERO));
-// 		assert_eq!(string_to_i256("123"), Ok(I256::from_str("123").unwrap()));
-// 		assert_eq!(string_to_i256(I256_MAX_STR), Ok(I256::MAX));
-// 		assert_eq!(string_to_i256(I256_MIN_STR), Ok(I256::MIN));
-// 		assert_eq!(string_to_i256("-123"), Ok(I256::from_str("-123").unwrap()));
-// 		assert_eq!(string_to_i256("-0"), Ok(I256::ZERO));
+		// --- Valid hex cases ---
+		assert_eq!(string_to_i256("0x0"), Ok(I256::ZERO));
+		assert_eq!(string_to_i256("0X0"), Ok(I256::ZERO)); // Case insensitive
+		assert_eq!(string_to_i256(I256_MAX_HEX_STR), Ok(I256::MAX));
+		assert_eq!(string_to_i256(I256_MIN_HEX_STR), Ok(I256::MIN));
 
-// 		// --- Valid hex cases ---
-// 		assert_eq!(string_to_i256("0x0"), Ok(I256::ZERO));
-// 		assert_eq!(string_to_i256("0X0"), Ok(I256::ZERO)); // Case insensitive
-// 		assert_eq!(string_to_i256(I256_MAX_HEX_STR), Ok(I256::MAX));
-// 		assert_eq!(string_to_i256(I256_MIN_HEX_STR), Ok(I256::MIN));
+		// --- Invalid cases ---
+		assert!(string_to_i256("").is_err());
+		assert!(string_to_i256("   ").is_err());
+		assert!(string_to_i256("0x").is_err());
+		assert!(string_to_i256("abc").is_err());
+		assert!(string_to_i256("-abc").is_err());
+		assert!(string_to_i256(I256_POS_OVERFLOW_STR).is_err());
+		assert!(string_to_i256(I256_NEG_OVERFLOW_STR).is_err());
+		assert!(string_to_i256(I256_HEX_OVERFLOW_STR).is_err());
+	}
 
-// 		// --- Invalid cases ---
-// 		assert!(string_to_i256("").is_err());
-// 		assert!(string_to_i256("   ").is_err());
-// 		assert!(string_to_i256("0x").is_err());
-// 		assert!(string_to_i256("abc").is_err());
-// 		assert!(string_to_i256("-abc").is_err());
-// 		assert!(string_to_i256(I256_POS_OVERFLOW_STR).is_err());
-// 		assert!(string_to_i256(I256_NEG_OVERFLOW_STR).is_err());
-// 		assert!(string_to_i256(I256_HEX_OVERFLOW_STR).is_err());
-// 	}
+	#[test]
+	fn test_are_same_address() {
+		assert!(are_same_address(
+			"0x0123456789abcdef0123456789abcdef01234567",
+			"0x0123456789ABCDEF0123456789ABCDEF01234567"
+		));
+		assert!(are_same_address(
+			"0123456789abcdef0123456789abcdef01234567",
+			"0x0123456789abcdef0123456789abcdef01234567"
+		));
+		assert!(!are_same_address(
+			"0x0123456789abcdef0123456789abcdef01234567",
+			"0x0123456789abcdef0123456789abcdef01234568"
+		));
+	}
 
-// 	#[test]
-// 	fn test_are_same_address() {
-// 		assert!(are_same_address(
-// 			"0x0123456789abcdef0123456789abcdef01234567",
-// 			"0x0123456789ABCDEF0123456789ABCDEF01234567"
-// 		));
-// 		assert!(are_same_address(
-// 			"0123456789abcdef0123456789abcdef01234567",
-// 			"0x0123456789abcdef0123456789abcdef01234567"
-// 		));
-// 		assert!(!are_same_address(
-// 			"0x0123456789abcdef0123456789abcdef01234567",
-// 			"0x0123456789abcdef0123456789abcdef01234568"
-// 		));
-// 	}
+	#[test]
+	fn test_normalize_address() {
+		assert_eq!(
+			normalize_address("0x0123456789ABCDEF0123456789ABCDEF01234567"),
+			"0123456789abcdef0123456789abcdef01234567"
+		);
+		assert_eq!(
+			normalize_address("0123456789ABCDEF0123456789ABCDEF01234567"),
+			"0123456789abcdef0123456789abcdef01234567"
+		);
+		assert_eq!(
+			normalize_address("0x0123456789abcdef 0123456789abcdef01234567"),
+			"0123456789abcdef0123456789abcdef01234567"
+		);
+	}
 
-// 	#[test]
-// 	fn test_normalize_address() {
-// 		assert_eq!(
-// 			normalize_address("0x0123456789ABCDEF0123456789ABCDEF01234567"),
-// 			"0123456789abcdef0123456789abcdef01234567"
-// 		);
-// 		assert_eq!(
-// 			normalize_address("0123456789ABCDEF0123456789ABCDEF01234567"),
-// 			"0123456789abcdef0123456789abcdef01234567"
-// 		);
-// 		assert_eq!(
-// 			normalize_address("0x0123456789abcdef 0123456789abcdef01234567"),
-// 			"0123456789abcdef0123456789abcdef01234567"
-// 		);
-// 	}
+	#[test]
+	fn test_are_same_signature() {
+		assert!(are_same_signature(
+			"transfer(address,uint256)",
+			"transfer(address, uint256)"
+		));
+		assert!(are_same_signature(
+			"TRANSFER(address,uint256)",
+			"transfer(address,uint256)"
+		));
+		assert!(!are_same_signature(
+			"transfer(address,uint256)",
+			"transfer(address,uint128)"
+		));
+	}
 
-// 	#[test]
-// 	fn test_are_same_signature() {
-// 		assert!(are_same_signature(
-// 			"transfer(address,uint256)",
-// 			"transfer(address, uint256)"
-// 		));
-// 		assert!(are_same_signature(
-// 			"TRANSFER(address,uint256)",
-// 			"transfer(address,uint256)"
-// 		));
-// 		assert!(!are_same_signature(
-// 			"transfer(address,uint256)",
-// 			"transfer(address,uint128)"
-// 		));
-// 	}
+	#[test]
+	fn test_normalize_signature() {
+		assert_eq!(
+			normalize_signature("transfer(address, uint256)"),
+			"transfer(address,uint256)"
+		);
+		assert_eq!(
+			normalize_signature("TRANSFER(address,uint256)"),
+			"transfer(address,uint256)"
+		);
+		assert_eq!(
+			normalize_signature("transfer (address , uint256 )"),
+			"transfer(address,uint256)"
+		);
+	}
 
-// 	#[test]
-// 	fn test_normalize_signature() {
-// 		assert_eq!(
-// 			normalize_signature("transfer(address, uint256)"),
-// 			"transfer(address,uint256)"
-// 		);
-// 		assert_eq!(
-// 			normalize_signature("TRANSFER(address,uint256)"),
-// 			"transfer(address,uint256)"
-// 		);
-// 		assert_eq!(
-// 			normalize_signature("transfer (address , uint256 )"),
-// 			"transfer(address,uint256)"
-// 		);
-// 	}
+	#[test]
+	fn test_format_token_value() {
+		// Test Address
+		let address =
+			Address::from_slice(&hex::decode("0123456789abcdef0123456789abcdef01234567").unwrap());
+		assert_eq!(
+			format_token_value(&DynSolValue::Address(address)),
+			"0x0123456789abcdef0123456789abcdef01234567"
+		);
 
-// 	#[test]
-// 	fn test_format_token_value() {
-// 		// Test Address
-// 		let address = ethabi::Address::from_slice(
-// 			&hex::decode("0123456789abcdef0123456789abcdef01234567").unwrap(),
-// 		);
-// 		assert_eq!(
-// 			format_token_value(&DynSolValue::Address(address)),
-// 			"0x0123456789abcdef0123456789abcdef01234567"
-// 		);
+		// Test Bytes
+		let bytes = hex::decode("0123456789").unwrap();
+		assert_eq!(
+			format_token_value(&DynSolValue::Bytes(bytes)),
+			"0x0123456789"
+		);
 
-// 		// Test Bytes
-// 		let bytes = hex::decode("0123456789").unwrap();
-// 		assert_eq!(
-// 			format_token_value(&DynSolValue::Bytes(bytes.clone())),
-// 			"0x0123456789"
-// 		);
-// 		assert_eq!(
-// 			format_token_value(&DynSolValue::FixedBytes(bytes)),
-// 			"0x0123456789"
-// 		);
+		// Test FixedBytes with 32-byte hash
+		let hash_bytes =
+			hex::decode("abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234567").unwrap();
+		let mut fixed_bytes = [0u8; 32];
+		fixed_bytes[..hash_bytes.len()].copy_from_slice(&hash_bytes);
+		assert_eq!(
+			format_token_value(&DynSolValue::FixedBytes(
+				alloy::primitives::FixedBytes::<32>::from(fixed_bytes),
+				32
+			)),
+			"0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456700"
+		);
 
-// 		// Test Numbers
-// 		assert_eq!(
-// 			format_token_value(&DynSolValue::Int(ethabi::Int::from(123), 256)),
-// 			"123"
-// 		);
-// 		assert_eq!(
-// 			format_token_value(&DynSolValue::Uint(ethabi::Uint::from(456), 256)),
-// 			"456"
-// 		);
+		// Test Numbers
+		assert_eq!(
+			format_token_value(&DynSolValue::Int(I256::try_from(-123).unwrap(), 256)),
+			"-123"
+		);
+		assert_eq!(
+			format_token_value(&DynSolValue::Uint(U256::from(456), 256)),
+			"456"
+		);
 
-// 		// Test Bool
-// 		assert_eq!(format_token_value(&DynSolValue::Bool(true)), "true");
-// 		assert_eq!(format_token_value(&DynSolValue::Bool(false)), "false");
+		// Test Bool
+		assert_eq!(format_token_value(&DynSolValue::Bool(true)), "true");
+		assert_eq!(format_token_value(&DynSolValue::Bool(false)), "false");
 
-// 		// Test String
-// 		assert_eq!(
-// 			format_token_value(&DynSolValue::String("test".to_string())),
-// 			"test"
-// 		);
+		// Test String
+		assert_eq!(
+			format_token_value(&DynSolValue::String("hello world".to_string())),
+			"hello world"
+		);
 
-// 		// Test Array
-// 		let arr = vec![
-// 			DynSolValue::Uint(ethabi::Uint::from(1), 256),
-// 			DynSolValue::Uint(ethabi::Uint::from(2), 256),
-// 		];
-// 		assert_eq!(
-// 			format_token_value(&DynSolValue::Array(arr.clone())),
-// 			"[1,2]"
-// 		);
-// 		assert_eq!(format_token_value(&DynSolValue::FixedArray(arr)), "[1,2]");
+		// Test Array (empty and non-empty)
+		assert_eq!(format_token_value(&DynSolValue::Array(vec![])), "[]");
+		let arr = vec![
+			DynSolValue::Uint(U256::from(1), 256),
+			DynSolValue::Uint(U256::from(2), 256),
+		];
+		assert_eq!(
+			format_token_value(&DynSolValue::Array(arr.clone())),
+			"[1,2]"
+		);
+		assert_eq!(format_token_value(&DynSolValue::FixedArray(arr)), "[1,2]");
 
-// 		// Test Tuple
-// 		let tuple = vec![
-// 			DynSolValue::String("test".to_string()),
-// 			DynSolValue::Uint(ethabi::Uint::from(123), 256),
-// 		];
-// 		assert_eq!(format_token_value(&DynSolValue::Tuple(tuple)), "(test,123)");
-// 	}
-//}
+		// Test nested structures
+		let nested_tuple = vec![
+			DynSolValue::String("transfer".to_string()),
+			DynSolValue::Address(Address::from_slice(
+				&hex::decode("0123456789abcdef0123456789abcdef01234567").unwrap(),
+			)),
+			DynSolValue::Uint(U256::from(1000), 256),
+		];
+		assert_eq!(
+			format_token_value(&DynSolValue::Tuple(nested_tuple)),
+			"(transfer,0x0123456789abcdef0123456789abcdef01234567,1000)"
+		);
+
+		// Test Function - represents function selector (4 bytes) + address (20 bytes)
+		// This is a more realistic function pointer with actual function selector and address
+		let transfer_selector = [0xa9, 0x05, 0x9c, 0xbb]; // transfer(address,uint256) selector
+		let contract_address = hex::decode("0123456789abcdef0123456789abcdef01234567").unwrap();
+		let mut function_bytes = [0u8; 24];
+		function_bytes[..4].copy_from_slice(&transfer_selector);
+		function_bytes[4..24].copy_from_slice(&contract_address);
+
+		assert_eq!(
+			format_token_value(&DynSolValue::Function(alloy::primitives::Function::from(
+				function_bytes
+			))),
+			"0xa9059cbb0123456789abcdef0123456789abcdef01234567"
+		);
+	}
+}
