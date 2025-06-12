@@ -6,6 +6,7 @@
 
 use alloy::primitives::{Address, B256, I256, U256};
 use alloy_dyn_abi::DynSolValue;
+use serde_json::{Number, Value as JsonValue};
 use std::str::FromStr;
 
 /// Converts an B256 hash to its hexadecimal string representation.
@@ -112,7 +113,7 @@ pub fn format_token_value(token: &DynSolValue) -> String {
 		DynSolValue::Int(num, _) => num.to_string(),
 		DynSolValue::Uint(num, _) => num.to_string(),
 		DynSolValue::Bool(b) => b.to_string(),
-		DynSolValue::String(s) => format!("\"{}\"", s.replace("\\", "\\\\").replace("\"", "\\\"")),
+		DynSolValue::String(s) => s.clone(),
 		DynSolValue::Array(arr) => {
 			format!(
 				"[{}]",
@@ -142,6 +143,35 @@ pub fn format_token_value(token: &DynSolValue) -> String {
 			)
 		}
 		DynSolValue::Function(selector) => format!("0x{}", hex::encode(selector)),
+	}
+}
+
+/// Convert a DynSolValue into serde_json::Value for structured JSON output
+///
+/// # Arguments
+/// * `val` - The DynSolValue to convert
+///
+/// # Returns
+/// A serde_json::Value representing the DynSolValue
+/// TODO: add unit tests for this function
+pub fn dyn_value_to_json(val: &DynSolValue) -> JsonValue {
+	match val {
+		DynSolValue::Bool(b) => JsonValue::Bool(*b),
+		DynSolValue::String(s) => JsonValue::String(s.clone()),
+		DynSolValue::Address(addr) => JsonValue::String(format!("{:#x}", addr)),
+		DynSolValue::Uint(u, _) => {
+			let s = u.to_string();
+			if let Ok(num) = Number::from_str(&s) {
+				JsonValue::Number(num)
+			} else {
+				JsonValue::String(s)
+			}
+		}
+		DynSolValue::Array(arr) => JsonValue::Array(arr.iter().map(dyn_value_to_json).collect()),
+		DynSolValue::Tuple(fields) => {
+			JsonValue::Array(fields.iter().map(dyn_value_to_json).collect())
+		}
+		_ => JsonValue::String(format!("{:?}", val)),
 	}
 }
 
@@ -457,7 +487,7 @@ mod tests {
 		// Test String
 		assert_eq!(
 			format_token_value(&DynSolValue::String("hello world".to_string())),
-			"\"hello world\""
+			"hello world"
 		);
 
 		// Test Array (empty and non-empty)
@@ -482,7 +512,7 @@ mod tests {
 		];
 		assert_eq!(
 			format_token_value(&DynSolValue::Tuple(nested_tuple)),
-			"[\"transfer\",0x0123456789abcdef0123456789abcdef01234567,1000]"
+			"[transfer,0x0123456789abcdef0123456789abcdef01234567,1000]"
 		);
 
 		// Test Function - represents function selector (4 bytes) + address (20 bytes)
