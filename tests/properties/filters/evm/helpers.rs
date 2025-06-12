@@ -359,8 +359,8 @@ proptest! {
 				prop_assert!(formatted.ends_with(']'));
 			}
 			DynSolValue::Tuple(_) => {
-				prop_assert!(formatted.starts_with('('));
-				prop_assert!(formatted.ends_with(')'));
+				prop_assert!(formatted.starts_with('['));
+				prop_assert!(formatted.ends_with(']'));
 			}
 			_ => {}
 		}
@@ -376,7 +376,7 @@ proptest! {
 				prop_assert_eq!(formatted, b.to_string());
 			}
 			DynSolValue::String(s) => {
-				prop_assert_eq!(formatted, s);
+				prop_assert_eq!(formatted, format!("\"{}\"", s.replace("\\", "\\\\").replace("\"", "\\\"")));
 			}
 			_ => {}
 		}
