@@ -222,21 +222,6 @@ pub fn string_to_i256(value_str: &str) -> Result<I256, String> {
 	}
 }
 
-/// Helper function to remove surrounding quotes from a string if present
-///
-/// # Arguments
-/// * `value` - The string to unquote
-///
-/// # Returns
-/// The unquoted string
-pub fn unquote_string(value: &str) -> &str {
-	if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
-		&value[1..value.len() - 1]
-	} else {
-		value
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -529,59 +514,5 @@ mod tests {
 			))),
 			format!("0x{}", hex::encode(function_bytes))
 		);
-	}
-
-	#[test]
-	fn test_unquote_string() {
-		// Test string with quotes at both ends - should remove them
-		assert_eq!(unquote_string("\"hello world\""), "hello world");
-		assert_eq!(unquote_string("\"test\""), "test");
-
-		// Test empty quoted string - should return empty string
-		assert_eq!(unquote_string("\"\""), "");
-
-		// Test string without quotes - should return as is
-		assert_eq!(unquote_string("hello world"), "hello world");
-		assert_eq!(unquote_string("test"), "test");
-
-		// Test empty string - should return as is
-		assert_eq!(unquote_string(""), "");
-
-		// Test string with only one quote at the start - should return as is
-		assert_eq!(unquote_string("\"hello world"), "\"hello world");
-
-		// Test string with only one quote at the end - should return as is
-		assert_eq!(unquote_string("hello world\""), "hello world\"");
-
-		// Test string with exactly one character (just a quote) - should return as is
-		assert_eq!(unquote_string("\""), "\"");
-
-		// Test string with quotes in the middle but not at ends - should return as is
-		assert_eq!(unquote_string("hello\"world"), "hello\"world");
-		assert_eq!(
-			unquote_string("hello \"quoted\" world"),
-			"hello \"quoted\" world"
-		);
-
-		// Test string with nested quotes - should only remove outer quotes
-		assert_eq!(
-			unquote_string("\"hello \\\"quoted\\\" world\""),
-			"hello \\\"quoted\\\" world"
-		);
-		assert_eq!(
-			unquote_string("\"'single quotes inside'\""),
-			"'single quotes inside'"
-		);
-
-		// Test string with multiple quotes but only remove outer ones
-		assert_eq!(unquote_string("\"\"inner quotes\"\""), "\"inner quotes\"");
-
-		// Test strings with whitespace
-		assert_eq!(unquote_string("\" \""), " ");
-		assert_eq!(unquote_string("\"  hello  \""), "  hello  ");
-
-		// Test strings with special characters
-		assert_eq!(unquote_string("\"\n\t\""), "\n\t");
-		assert_eq!(unquote_string("\"hello\\nworld\""), "hello\\nworld");
 	}
 }

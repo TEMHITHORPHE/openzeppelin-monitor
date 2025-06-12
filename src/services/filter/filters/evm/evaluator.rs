@@ -4,12 +4,9 @@
 use super::helpers::{are_same_address, string_to_i256, string_to_u256};
 use crate::{
 	models::EVMMatchParamEntry,
-	services::filter::{
-		evm_helpers::unquote_string,
-		expression::{
-			compare_ordered_values, ComparisonOperator, ConditionEvaluator, EvaluationError,
-			LiteralValue,
-		},
+	services::filter::expression::{
+		compare_ordered_values, ComparisonOperator, ConditionEvaluator, EvaluationError,
+		LiteralValue,
 	},
 };
 use rust_decimal::Decimal;
@@ -360,8 +357,8 @@ impl<'a> EVMConditionEvaluator<'a> {
 		operator: &ComparisonOperator,
 		rhs_literal: &LiteralValue<'_>,
 	) -> Result<bool, EvaluationError> {
-		// Perform case-insensitive comparisons for all string operators and remove quotes if present
-		let left = unquote_string(lhs_str).to_lowercase();
+		// Perform case-insensitive comparisons for all string operators
+		let left = lhs_str.to_lowercase();
 
 		let right = match rhs_literal {
 			LiteralValue::Str(s) => s.to_lowercase(),
