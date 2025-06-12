@@ -4,9 +4,12 @@
 use super::helpers::{are_same_address, string_to_i256, string_to_u256};
 use crate::{
 	models::EVMMatchParamEntry,
-	services::filter::expression::{
-		compare_ordered_values, ComparisonOperator, ConditionEvaluator, EvaluationError,
-		LiteralValue,
+	services::filter::{
+		evm_helpers::unquote_string,
+		expression::{
+			compare_ordered_values, ComparisonOperator, ConditionEvaluator, EvaluationError,
+			LiteralValue,
+		},
 	},
 };
 use rust_decimal::Decimal;
@@ -89,7 +92,9 @@ impl<'a> EVMConditionEvaluator<'a> {
 			JsonValue::Object(nested_map) => nested_map
 				.values()
 				.any(|val_in_obj| self.check_json_value_matches_str(val_in_obj, rhs_str)),
-			JsonValue::Array(_) => false,
+			JsonValue::Array(arr) => arr
+				.iter()
+				.any(|item_in_array| self.check_json_value_matches_str(item_in_array, rhs_str)),
 			JsonValue::Null => rhs_str == "null",
 		}
 	}
@@ -355,8 +360,8 @@ impl<'a> EVMConditionEvaluator<'a> {
 		operator: &ComparisonOperator,
 		rhs_literal: &LiteralValue<'_>,
 	) -> Result<bool, EvaluationError> {
-		// Perform case-insensitive comparisons for all string operators
-		let left = lhs_str.to_lowercase();
+		// Perform case-insensitive comparisons for all string operators and remove quotes if present
+		let left = unquote_string(lhs_str).to_lowercase();
 
 		let right = match rhs_literal {
 			LiteralValue::Str(s) => s.to_lowercase(),
@@ -649,7 +654,7 @@ impl ConditionEvaluator for EVMConditionEvaluator<'_> {
 			return self.compare_u256(lhs_value_str, operator, rhs_literal);
 		}
 
-		if ARRAY_KINDS.contains(&lhs_kind.as_str()) {
+		if ARRAY_KINDS.contains(&lhs_kind.as_str()) || lhs_kind.as_str() == "tuple" {
 			return self.compare_array(lhs_value_str, operator, rhs_literal);
 		}
 

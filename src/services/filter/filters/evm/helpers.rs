@@ -112,7 +112,7 @@ pub fn format_token_value(token: &DynSolValue) -> String {
 		DynSolValue::Int(num, _) => num.to_string(),
 		DynSolValue::Uint(num, _) => num.to_string(),
 		DynSolValue::Bool(b) => b.to_string(),
-		DynSolValue::String(s) => s.clone(),
+		DynSolValue::String(s) => format!("\"{}\"", s.replace("\\", "\\\\").replace("\"", "\\\"")),
 		DynSolValue::Array(arr) => {
 			format!(
 				"[{}]",
@@ -133,7 +133,7 @@ pub fn format_token_value(token: &DynSolValue) -> String {
 		}
 		DynSolValue::Tuple(tuple) => {
 			format!(
-				"({})",
+				"[{}]",
 				tuple
 					.iter()
 					.map(format_token_value)
@@ -189,6 +189,21 @@ pub fn string_to_i256(value_str: &str) -> Result<I256, String> {
 			.map(I256::from_raw)
 	} else {
 		I256::from_str(trimmed).map_err(|e| format!("Failed to parse decimal '{}': {}", trimmed, e))
+	}
+}
+
+/// Helper function to remove surrounding quotes from a string if present
+///
+/// # Arguments
+/// * `value` - The string to unquote
+///
+/// # Returns
+/// The unquoted string
+pub fn unquote_string(value: &str) -> &str {
+	if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+		&value[1..value.len() - 1]
+	} else {
+		value
 	}
 }
 
@@ -401,19 +416,20 @@ mod tests {
 			Address::from_slice(&hex::decode("0123456789abcdef0123456789abcdef01234567").unwrap());
 		assert_eq!(
 			format_token_value(&DynSolValue::Address(address)),
-			"0x0123456789abcdef0123456789abcdef01234567"
+			format!("0x{:x}", address)
 		);
 
 		// Test Bytes
 		let bytes = hex::decode("0123456789").unwrap();
 		assert_eq!(
-			format_token_value(&DynSolValue::Bytes(bytes)),
-			"0x0123456789"
+			format_token_value(&DynSolValue::Bytes(bytes.clone())),
+			format!("0x{}", hex::encode(bytes.clone()))
 		);
 
 		// Test FixedBytes with 32-byte hash
 		let hash_bytes =
-			hex::decode("abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234567").unwrap();
+			hex::decode("abcdef0123456789abcdef0123456789abcdef0123456789abcdef012345678a")
+				.unwrap();
 		let mut fixed_bytes = [0u8; 32];
 		fixed_bytes[..hash_bytes.len()].copy_from_slice(&hash_bytes);
 		assert_eq!(
@@ -421,7 +437,7 @@ mod tests {
 				alloy::primitives::FixedBytes::<32>::from(fixed_bytes),
 				32
 			)),
-			"0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456700"
+			format!("0x{}", hex::encode(hash_bytes))
 		);
 
 		// Test Numbers
@@ -441,7 +457,7 @@ mod tests {
 		// Test String
 		assert_eq!(
 			format_token_value(&DynSolValue::String("hello world".to_string())),
-			"hello world"
+			"\"hello world\""
 		);
 
 		// Test Array (empty and non-empty)
@@ -466,7 +482,7 @@ mod tests {
 		];
 		assert_eq!(
 			format_token_value(&DynSolValue::Tuple(nested_tuple)),
-			"(transfer,0x0123456789abcdef0123456789abcdef01234567,1000)"
+			"[\"transfer\",0x0123456789abcdef0123456789abcdef01234567,1000]"
 		);
 
 		// Test Function - represents function selector (4 bytes) + address (20 bytes)
@@ -481,7 +497,61 @@ mod tests {
 			format_token_value(&DynSolValue::Function(alloy::primitives::Function::from(
 				function_bytes
 			))),
-			"0xa9059cbb0123456789abcdef0123456789abcdef01234567"
+			format!("0x{}", hex::encode(function_bytes))
 		);
+	}
+
+	#[test]
+	fn test_unquote_string() {
+		// Test string with quotes at both ends - should remove them
+		assert_eq!(unquote_string("\"hello world\""), "hello world");
+		assert_eq!(unquote_string("\"test\""), "test");
+
+		// Test empty quoted string - should return empty string
+		assert_eq!(unquote_string("\"\""), "");
+
+		// Test string without quotes - should return as is
+		assert_eq!(unquote_string("hello world"), "hello world");
+		assert_eq!(unquote_string("test"), "test");
+
+		// Test empty string - should return as is
+		assert_eq!(unquote_string(""), "");
+
+		// Test string with only one quote at the start - should return as is
+		assert_eq!(unquote_string("\"hello world"), "\"hello world");
+
+		// Test string with only one quote at the end - should return as is
+		assert_eq!(unquote_string("hello world\""), "hello world\"");
+
+		// Test string with exactly one character (just a quote) - should return as is
+		assert_eq!(unquote_string("\""), "\"");
+
+		// Test string with quotes in the middle but not at ends - should return as is
+		assert_eq!(unquote_string("hello\"world"), "hello\"world");
+		assert_eq!(
+			unquote_string("hello \"quoted\" world"),
+			"hello \"quoted\" world"
+		);
+
+		// Test string with nested quotes - should only remove outer quotes
+		assert_eq!(
+			unquote_string("\"hello \\\"quoted\\\" world\""),
+			"hello \\\"quoted\\\" world"
+		);
+		assert_eq!(
+			unquote_string("\"'single quotes inside'\""),
+			"'single quotes inside'"
+		);
+
+		// Test string with multiple quotes but only remove outer ones
+		assert_eq!(unquote_string("\"\"inner quotes\"\""), "\"inner quotes\"");
+
+		// Test strings with whitespace
+		assert_eq!(unquote_string("\" \""), " ");
+		assert_eq!(unquote_string("\"  hello  \""), "  hello  ");
+
+		// Test strings with special characters
+		assert_eq!(unquote_string("\"\n\t\""), "\n\t");
+		assert_eq!(unquote_string("\"hello\\nworld\""), "hello\\nworld");
 	}
 }
