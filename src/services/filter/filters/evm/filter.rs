@@ -548,32 +548,148 @@ impl<T> EVMBlockFilter<T> {
 			.and_then(|event| {
 				let mut decoded_params = Vec::new();
 
-				// Decode indexed parameters from topics (skip first topic which is event signature)
-				for (i, param) in event.inputs.iter().filter(|p| p.indexed).enumerate() {
-					let topic = log.topics.get(i + 1)?;
-					let param_type = param.selector_type().parse::<DynSolType>().ok()?;
-					let decoded_value = param_type.abi_decode(&topic.0).ok()?;
+			// Decode indexed parameters from topics (skip first topic which is event signature)
+			for (i, param) in event.inputs.iter().filter(|p| p.indexed).enumerate() {
+				let topic = log.topics.get(i + 1)?;
+				let param_type = match param.selector_type().parse::<DynSolType>() {
+					Ok(param_type) => param_type,
+					Err(e) => {
+						FilterError::internal_error(
+							format!(
+								"Failed to parse indexed parameter type '{}' for event {}: {}",
+								param.selector_type(),
+								event.name,
+								e
+							),
+							None,
+							None,
+						);
+						return None;
+					}
+				};
 
-					decoded_params.push(EVMMatchParamEntry {
-						name: param.name.clone(),
-						value: format_token_value(&decoded_value),
-						kind: param.ty.to_string(),
-						indexed: true,
-					});
-				}
+				// For complex types, topics contain hashes
+				let decoded_value = match param_type {
+					DynSolType::Tuple(_) |
+					DynSolType::Array(_) |
+					DynSolType::FixedArray(_, _) |
+					DynSolType::String |
+					DynSolType::Bytes => {
+						// For complex types, the topic is a hash - store it as hex string
+						DynSolValue::FixedBytes(*topic, 32)
+					}
+					_ => {
+						// For simple types, decode normally
+						match param_type.abi_decode(&topic.0) {
+							Ok(value) => value,
+							Err(e) => {
+								FilterError::internal_error(
+									format!(
+										"Failed to decode indexed parameter '{}' (type: {}) for event {}: {}. Topic data length: {}",
+										param.name,
+										param.selector_type(),
+										event.name,
+										e,
+										topic.0.len()
+									),
+									None,
+									None,
+								);
+								return None;
+							}
+						}
+					}
+				};
+
+				decoded_params.push(EVMMatchParamEntry {
+					name: param.name.clone(),
+					value: format_token_value(&decoded_value),
+					kind: param.ty.to_string(),
+					indexed: true,
+				});
+			}
 
 				// Decode non-indexed parameters from data
 				let non_indexed: Vec<_> = event.inputs.iter().filter(|p| !p.indexed).collect();
 				if !non_indexed.is_empty() {
-					let types: Vec<DynSolType> = non_indexed.iter()
+					let types: Vec<DynSolType> = match non_indexed.iter()
 						.map(|p| p.selector_type().parse::<DynSolType>())
-						.collect::<Result<Vec<_>, _>>().ok()?;
-
-					let decoded_data = DynSolType::Tuple(types).abi_decode(&log.data.0).ok()?;
-					let values = match decoded_data {
-						DynSolValue::Tuple(vals) => vals,
-						val => vec![val],
+						.collect::<Result<Vec<_>, _>>() {
+						Ok(types) => types,
+						Err(e) => {
+							FilterError::internal_error(
+								format!("Failed to parse event parameter types: {}", e),
+								None,
+								None,
+							);
+							return None;
+						}
 					};
+
+					let values = match types.len() {
+						1 => {
+							// Handle single parameter case - decode directly, not as tuple
+							match types[0].abi_decode(&log.data.0) {
+								Ok(data) => vec![data],
+								Err(e) => {
+									FilterError::internal_error(
+										format!(
+											"Failed to decode single parameter for event {}: {}. Log data length: {}, Expected type: {:?}",
+											event.name,
+											e,
+											log.data.0.len(),
+											types[0]
+										),
+										Some(Box::new(e)),
+										None,
+									);
+									return None;
+								}
+							}
+						}
+						len if len > 1 => {
+							// Handle multiple parameters case - decode as tuple
+							let decoded_data = match DynSolType::Tuple(types.clone()).abi_decode(&log.data.0) {
+								Ok(data) => data,
+								Err(e) => {
+									FilterError::internal_error(
+										format!(
+											"Failed to decode event log data for event {}: {}. Log data length: {}, Expected types: {:?}",
+											event.name,
+											e,
+											log.data.0.len(),
+											types
+										),
+										Some(Box::new(e)),
+										None,
+									);
+									return None;
+								}
+							};
+
+							match decoded_data {
+								DynSolValue::Tuple(vals) => vals,
+								_val => {
+									tracing::warn!("Expected tuple for multiple parameters but got single value");
+									return None;
+								}
+							}
+						}
+						_ => {
+							// No non-indexed parameters
+							Vec::new()
+						}
+					};
+
+					// Verify we have the expected number of values
+					if values.len() != non_indexed.len() {
+						FilterError::internal_error(
+							format!("Decoded {} values but expected {} for event {}", values.len(), non_indexed.len(), event.name),
+							None,
+							None,
+						);
+						return None;
+					}
 
 					decoded_params.extend(
 						non_indexed.iter().zip(values.iter()).map(|(param, value)| {
@@ -596,7 +712,7 @@ impl<T> EVMBlockFilter<T> {
 					signature: format!(
 						"{}({})",
 						event.name,
-						event.inputs.iter().map(|p| p.ty.to_string()).collect::<Vec<_>>().join(",")
+						event.inputs.iter().map(|p| p.selector_type()).collect::<Vec<_>>().join(",")
 					),
 					args: Some(decoded_params),
 					hex_signature: Some(format!("0x{}", hex::encode(event.selector()))),
