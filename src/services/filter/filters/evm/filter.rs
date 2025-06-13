@@ -25,8 +25,8 @@ use crate::{
 		blockchain::{BlockChainClient, EvmClientTrait},
 		filter::{
 			evm_helpers::{
-				are_same_address, are_same_signature, b256_to_string, dyn_value_to_json,
-				format_token_value, h160_to_string, normalize_address,
+				are_same_address, are_same_signature, b256_to_string, format_token_value,
+				h160_to_string, normalize_address,
 			},
 			expression::{self, EvaluationError},
 			filters::evm::evaluator::EVMConditionEvaluator,
@@ -297,16 +297,7 @@ impl<T> EVMBlockFilter<T> {
 										.zip(decoded.iter())
 										.map(|(input, value)| EVMMatchParamEntry {
 											name: input.name.clone(),
-											value: match value {
-												DynSolValue::Tuple(tuple) => {
-													let value = tuple
-														.iter()
-														.map(dyn_value_to_json)  // Use dyn_value_to_json instead of format_token_value
-														.collect::<Vec<_>>();
-													serde_json::Value::Array(value).to_string() // Convert to proper JSON array string
-												}
-												_ => format_token_value(value),
-											},
+											value: format_token_value(value),
 											kind: input.ty.to_string(),
 											indexed: false,
 										})
@@ -563,20 +554,9 @@ impl<T> EVMBlockFilter<T> {
 					let param_type = param.selector_type().parse::<DynSolType>().ok()?;
 					let decoded_value = param_type.abi_decode(&topic.0).ok()?;
 
-					let value = match decoded_value {
-						DynSolValue::Tuple(tuple) => {
-							let value = tuple
-								.iter()
-								.map(dyn_value_to_json)  // Use dyn_value_to_json instead of format_token_value
-								.collect::<Vec<_>>();
-							serde_json::Value::Array(value).to_string() // Convert to proper JSON array string
-						}
-						_ => format_token_value(&decoded_value),
-					};
-
 					decoded_params.push(EVMMatchParamEntry {
 						name: param.name.clone(),
-						value,
+						value: format_token_value(&decoded_value),
 						kind: param.ty.to_string(),
 						indexed: true,
 					});
@@ -597,19 +577,9 @@ impl<T> EVMBlockFilter<T> {
 
 					decoded_params.extend(
 						non_indexed.iter().zip(values.iter()).map(|(param, value)| {
-							let value = match value {
-								DynSolValue::Tuple(tuple) => {
-									let value = tuple
-										.iter()
-										.map(dyn_value_to_json)  // Use dyn_value_to_json instead of format_token_value
-										.collect::<Vec<_>>();
-									serde_json::Value::Array(value).to_string() // Convert to proper JSON array string
-								}
-								_ => format_token_value(value),
-							};
 							EVMMatchParamEntry {
 								name: param.name.clone(),
-								value,
+								value: format_token_value(value),
 								kind: param.ty.to_string(),
 								indexed: false,
 							}

@@ -376,7 +376,7 @@ proptest! {
 				prop_assert_eq!(formatted, b.to_string());
 			}
 			DynSolValue::String(s) => {
-				prop_assert_eq!(formatted, format!("\"{}\"", s.replace("\\", "\\\\").replace("\"", "\\\"")));
+				prop_assert_eq!(formatted, s);
 			}
 			_ => {}
 		}
