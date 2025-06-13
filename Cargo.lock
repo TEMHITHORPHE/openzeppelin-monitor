@@ -3626,8 +3626,6 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "alloy",
- "alloy-dyn-abi",
- "alloy-json-abi",
  "anyhow",
  "async-trait",
  "base64 0.22.1",

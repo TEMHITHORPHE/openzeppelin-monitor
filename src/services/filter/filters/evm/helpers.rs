@@ -4,8 +4,8 @@
 //! and formatting, including address and hash conversions, signature normalization,
 //! and token value formatting.
 
+use alloy::core::dyn_abi::DynSolValue;
 use alloy::primitives::{Address, B256, I256, U256};
-use alloy_dyn_abi::DynSolValue;
 use serde_json::{Number, Value as JsonValue};
 use std::str::FromStr;
 

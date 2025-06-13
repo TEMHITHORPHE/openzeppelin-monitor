@@ -19,8 +19,6 @@ panic = 'unwind'
 actix-rt = "2.0.0"
 actix-web = "4"
 alloy = { version = "0.15.6", features = ["full"] }
-alloy-dyn-abi = "1.1.3"
-alloy-json-abi = "1.1.3"
 anyhow = { version = "1.0.97", features = ["std"] }
 async-trait = "0.1"
 base64 = "0.22"

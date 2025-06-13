@@ -7,9 +7,9 @@
 //! - Event log processing and filtering
 //! - ABI-based decoding of function calls and events
 
+use alloy::core::dyn_abi::{DynSolType, DynSolValue};
+use alloy::core::json_abi::{AbiItem, JsonAbi};
 use alloy::primitives::{keccak256, U64};
-use alloy_dyn_abi::{DynSolType, DynSolValue};
-use alloy_json_abi::{AbiItem, JsonAbi};
 use async_trait::async_trait;
 use std::marker::PhantomData;
 use tracing::instrument;
@@ -1017,9 +1017,9 @@ mod tests {
 	};
 
 	use super::*;
+	use alloy::core::dyn_abi::{DynSolValue, JsonAbiExt};
+	use alloy::core::json_abi::{Function, Param, StateMutability};
 	use alloy::primitives::{Address, Bytes, B256, U256};
-	use alloy_dyn_abi::{DynSolValue, JsonAbiExt};
-	use alloy_json_abi::{Function, Param};
 	use serde_json::json;
 	use std::str::FromStr;
 
@@ -1807,7 +1807,7 @@ mod tests {
 				components: vec![],
 				internal_type: None,
 			}],
-			state_mutability: alloy_json_abi::StateMutability::NonPayable,
+			state_mutability: StateMutability::NonPayable,
 		};
 
 		let params = vec![
@@ -1892,7 +1892,7 @@ mod tests {
 				components: vec![],
 				internal_type: None,
 			}],
-			state_mutability: alloy_json_abi::StateMutability::NonPayable,
+			state_mutability: StateMutability::NonPayable,
 		};
 
 		// Test with amount > 500 (should match)
@@ -2004,7 +2004,7 @@ mod tests {
 				components: vec![],
 				internal_type: None,
 			}],
-			state_mutability: alloy_json_abi::StateMutability::NonPayable,
+			state_mutability: StateMutability::NonPayable,
 		};
 
 		let params = vec![

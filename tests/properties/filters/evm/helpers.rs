@@ -4,8 +4,8 @@
 use std::str::FromStr;
 
 use crate::properties::filters::evm::strings_evaluator::create_evaluator;
+use alloy::core::dyn_abi::DynSolValue;
 use alloy::primitives::{Address, U256};
-use alloy_dyn_abi::DynSolValue;
 use openzeppelin_monitor::services::filter::{
 	evm_helpers::{format_token_value, string_to_h256},
 	ComparisonOperator, ConditionEvaluator, LiteralValue,
