@@ -7,9 +7,9 @@
 //! - Event log processing and filtering
 //! - ABI-based decoding of function calls and events
 
-use alloy::core::dyn_abi::{DynSolType, DynSolValue};
+use alloy::core::dyn_abi::{DynSolType, DynSolValue, EventExt};
 use alloy::core::json_abi::{AbiItem, JsonAbi};
-use alloy::primitives::{keccak256, U64};
+use alloy::primitives::{keccak256, LogData, U64};
 use async_trait::async_trait;
 use std::marker::PhantomData;
 use tracing::instrument;
@@ -537,186 +537,90 @@ impl<T> EVMBlockFilter<T> {
 			_ => return None,
 		};
 
-		// Find matching event in contract ABI
-		contract
+		// Find the matching Event
+		let event = match contract
 			.items()
 			.filter_map(|item| match item {
-				AbiItem::Event(evt) => Some(evt),
+				AbiItem::Event(e) => Some(e),
 				_ => None,
 			})
-			.find(|event| event.selector() == log.topics[0]) // matching against the first topic using B256
-			.and_then(|event| {
-				let mut decoded_params = Vec::new();
-
-			// Decode indexed parameters from topics (skip first topic which is event signature)
-			for (i, param) in event.inputs.iter().filter(|p| p.indexed).enumerate() {
-				let topic = log.topics.get(i + 1)?;
-				let param_type = match param.selector_type().parse::<DynSolType>() {
-					Ok(param_type) => param_type,
-					Err(e) => {
-						FilterError::internal_error(
-							format!(
-								"Failed to parse indexed parameter type '{}' for event {}: {}",
-								param.selector_type(),
-								event.name,
-								e
-							),
-							None,
-							None,
-						);
-						return None;
-					}
-				};
-				// For complex types, topics contain hashes
-				let decoded_value = match param_type {
-					DynSolType::Tuple(_) |
-					DynSolType::Array(_) |
-					DynSolType::FixedArray(_, _) |
-					DynSolType::String |
-					DynSolType::Bytes => {
-						// For complex types, the topic is a hash - store it as hex string
-						DynSolValue::FixedBytes(*topic, 32)
-					}
-					_ => {
-						// For simple types, decode normally
-						match param_type.abi_decode(&topic.0) {
-							Ok(value) => value,
-							Err(e) => {
-								FilterError::internal_error(
-									format!(
-										"Failed to decode indexed parameter '{}' (type: {}) for event {}: {}. Topic data length: {}",
-										param.name,
-										param.selector_type(),
-										event.name,
-										e,
-										topic.0.len()
-									),
-									None,
-									None,
-								);
-								return None;
-							}
-						}
-					}
-				};
-
-				decoded_params.push(EVMMatchParamEntry {
-					name: param.name.clone(),
-					value: format_token_value(&decoded_value),
-					kind: param.ty.to_string(),
-					indexed: true,
-				});
+			.find(|e| e.selector() == log.topics[0])
+		{
+			Some(event) => event,
+			None => {
+				FilterError::internal_error(
+					format!("No matching event found for log topic: {:?}", log.topics[0]),
+					None,
+					None,
+				);
+				return None;
 			}
+		};
 
-				// Decode non-indexed parameters from data
-				let non_indexed: Vec<_> = event.inputs.iter().filter(|p| !p.indexed).collect();
-				if !non_indexed.is_empty() {
-					let types: Vec<DynSolType> = match non_indexed.iter()
-						.map(|p| p.selector_type().parse::<DynSolType>())
-						.collect::<Result<Vec<_>, _>>() {
-						Ok(types) => types,
-						Err(e) => {
-							FilterError::internal_error(
-								format!("Failed to parse event parameter types: {}", e),
-								None,
-								None,
-							);
-							return None;
-						}
-					};
+		// Decode event in one call (covering non-indexed and indexed params)
+		let log_data = match LogData::new(log.topics.clone(), log.data.clone()) {
+			Some(data) => data,
+			None => {
+				FilterError::internal_error(
+					format!("Failed to create log data: {:?}", log.topics[0]),
+					None,
+					None,
+				);
+				return None;
+			}
+		};
+		let decoded = match event.decode_log(&log_data) {
+			Ok(decoded) => decoded,
+			Err(e) => {
+				FilterError::internal_error(
+					format!("Failed to decode log data: {:?}", e.to_string()),
+					None,
+					None,
+				);
+				return None;
+			}
+		};
 
-					let values = match types.len() {
-						1 => {
-							// Handle single parameter case - decode directly, not as tuple
-							match types[0].abi_decode(&log.data.0) {
-								Ok(data) => vec![data],
-								Err(e) => {
-									FilterError::internal_error(
-										format!(
-											"Failed to decode single parameter for event {}: {}. Log data length: {}, Expected type: {:?}",
-											event.name,
-											e,
-											log.data.0.len(),
-											types[0]
-										),
-										Some(Box::new(e)),
-										None,
-									);
-									return None;
-								}
-							}
-						}
-						len if len > 1 => {
-							// Handle multiple parameters case - decode as tuple
-							let decoded_data = match DynSolType::Tuple(types.clone()).abi_decode(&log.data.0) {
-								Ok(data) => data,
-								Err(e) => {
-									FilterError::internal_error(
-										format!(
-											"Failed to decode event log data for event {}: {}. Log data length: {}, Expected types: {:?}",
-											event.name,
-											e,
-											log.data.0.len(),
-											types
-										),
-										Some(Box::new(e)),
-										None,
-									);
-									return None;
-								}
-							};
+		// Build two iterators (we always have both indexed and non-indexed params in the exact sequence declared in the ABI)
+		let mut indexed_vals = decoded.indexed.into_iter().map(|v| format_token_value(&v));
+		let mut body_vals = decoded.body.into_iter().map(|v| format_token_value(&v));
 
-							match decoded_data {
-								DynSolValue::Tuple(vals) => vals,
-								_val => {
-									tracing::warn!("Expected tuple for multiple parameters but got single value");
-									return None;
-								}
-							}
-						}
-						_ => {
-							// No non-indexed parameters
-							Vec::new()
-						}
-					};
+		// Map over the event inputs
+		let decoded_params: Vec<_> = event
+			.inputs
+			.iter()
+			.map(|param| {
+				let (value, indexed) = if param.indexed {
+					// pull from our indexed iterator
+					(indexed_vals.next().unwrap_or_default(), true)
+				} else {
+					// pull from our body iterator
+					(body_vals.next().unwrap_or_default(), false)
+				};
 
-					// Verify we have the expected number of values
-					if values.len() != non_indexed.len() {
-						FilterError::internal_error(
-							format!("Decoded {} values but expected {} for event {}", values.len(), non_indexed.len(), event.name),
-							None,
-							None,
-						);
-						return None;
-					}
-
-					decoded_params.extend(
-						non_indexed.iter().zip(values.iter()).map(|(param, value)| {
-							EVMMatchParamEntry {
-								name: param.name.clone(),
-								value: format_token_value(value),
-								kind: param.ty.to_string(),
-								indexed: false,
-							}
-						})
-					);
+				EVMMatchParamEntry {
+					name: param.name.clone(),
+					value,
+					kind: param.ty.to_string(),
+					indexed,
 				}
-
-				// Sort parameters by their original order in the ABI
-				decoded_params.sort_by_key(|param| {
-					event.inputs.iter().position(|input| input.name == param.name).unwrap_or(usize::MAX)
-				});
-
-				Some(EVMMatchParamsMap {
-					signature: format!(
-						"{}({})",
-						event.name,
-						event.inputs.iter().map(|p| p.selector_type()).collect::<Vec<_>>().join(",")
-					),
-					args: Some(decoded_params),
-					hex_signature: Some(format!("0x{}", hex::encode(event.selector()))),
-				})
 			})
+			.collect();
+
+		Some(EVMMatchParamsMap {
+			signature: format!(
+				"{}({})",
+				event.name,
+				event
+					.inputs
+					.iter()
+					.map(|p| p.selector_type())
+					.collect::<Vec<_>>()
+					.join(",")
+			),
+			args: Some(decoded_params),
+			hex_signature: Some(format!("0x{}", hex::encode(event.selector()))),
+		})
 	}
 
 	/// Checks if a monitor has any transaction conditions that require a receipt
