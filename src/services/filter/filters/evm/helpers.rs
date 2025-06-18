@@ -473,6 +473,30 @@ mod tests {
 			"456"
 		);
 
+		// Test formatting unsigned int with Int type
+		assert_eq!(
+			format_token_value(&DynSolValue::Int(I256::try_from(456).unwrap(), 256)),
+			"456"
+		);
+
+		// Test formatting -1 as Uint (should show U256::MAX)
+		let negative_one_as_uint = DynSolValue::Uint(U256::MAX, 256);
+		assert_eq!(
+			format_token_value(&negative_one_as_uint),
+			"115792089237316195423570985008687907853269984665640564039457584007913129639935" // U256::MAX instead of -1
+		);
+
+		// Test formatting large unsigned value (>INT256_MAX) as Int type
+		// This should appear negative due to sign bit interpretation
+		let large_uint_as_int = DynSolValue::Int(
+			I256::from_raw(U256::from(2).pow(U256::from(255))), // 2^255 (just over INT256_MAX)
+			256,
+		);
+		assert_eq!(
+			format_token_value(&large_uint_as_int),
+			"-57896044618658097711785492504343953926634992332820282019728792003956564819968" // Shows as negative!
+		);
+
 		// Test Bool
 		assert_eq!(format_token_value(&DynSolValue::Bool(true)), "true");
 		assert_eq!(format_token_value(&DynSolValue::Bool(false)), "false");

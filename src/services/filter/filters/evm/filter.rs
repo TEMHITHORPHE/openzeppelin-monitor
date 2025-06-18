@@ -1689,26 +1689,25 @@ mod tests {
 		);
 
 		// Create a transaction with transfer function call
-		#[allow(deprecated)]
 		let function = Function {
 			name: "transfer".to_string(),
 			inputs: vec![
 				Param {
 					name: "recipient".to_string(),
-					ty: "address".to_string(),
+					ty: DynSolType::Address.to_string(),
 					components: vec![],
 					internal_type: None,
 				},
 				Param {
 					name: "amount".to_string(),
-					ty: "uint256".to_string(),
+					ty: DynSolType::Uint(256).to_string(),
 					components: vec![],
 					internal_type: None,
 				},
 			],
 			outputs: vec![Param {
 				name: "".to_string(),
-				ty: "bool".to_string(),
+				ty: DynSolType::Bool.to_string(),
 				components: vec![],
 				internal_type: None,
 			}],
@@ -1780,20 +1779,20 @@ mod tests {
 			inputs: vec![
 				Param {
 					name: "recipient".to_string(),
-					ty: "address".to_string(),
+					ty: DynSolType::Address.to_string(),
 					components: vec![],
 					internal_type: None,
 				},
 				Param {
 					name: "amount".to_string(),
-					ty: "uint256".to_string(),
+					ty: DynSolType::Uint(256).to_string(),
 					components: vec![],
 					internal_type: None,
 				},
 			],
 			outputs: vec![Param {
 				name: "".to_string(),
-				ty: "bool".to_string(),
+				ty: DynSolType::Bool.to_string(),
 				components: vec![],
 				internal_type: None,
 			}],
@@ -1892,20 +1891,20 @@ mod tests {
 			inputs: vec![
 				Param {
 					name: "recipient".to_string(),
-					ty: "address".to_string(),
+					ty: DynSolType::Address.to_string(),
 					components: vec![],
 					internal_type: None,
 				},
 				Param {
 					name: "amount".to_string(),
-					ty: "uint256".to_string(),
+					ty: DynSolType::Uint(256).to_string(),
 					components: vec![],
 					internal_type: None,
 				},
 			],
 			outputs: vec![Param {
 				name: "".to_string(),
-				ty: "bool".to_string(),
+				ty: DynSolType::Bool.to_string(),
 				components: vec![],
 				internal_type: None,
 			}],
@@ -2881,6 +2880,7 @@ mod tests {
 			address: contract_address,
 			topics: vec![
 				B256::from_str(
+					// Transfer(address,address,uint256) -- event signature
 					"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
 				)
 				.unwrap(), // Only event signature
