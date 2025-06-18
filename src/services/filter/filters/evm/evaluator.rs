@@ -42,6 +42,7 @@ const ARRAY_KINDS: &[&str] = &[
 	"ufixed[]",
 	"bytes[]",
 	"bytes32[]",
+	"tuple",
 	"tuple[]",
 ];
 
@@ -651,7 +652,7 @@ impl ConditionEvaluator for EVMConditionEvaluator<'_> {
 			return self.compare_u256(lhs_value_str, operator, rhs_literal);
 		}
 
-		if ARRAY_KINDS.contains(&lhs_kind.as_str()) || lhs_kind.as_str() == "tuple" {
+		if ARRAY_KINDS.contains(&lhs_kind.as_str()) {
 			return self.compare_array(lhs_value_str, operator, rhs_literal);
 		}
 
