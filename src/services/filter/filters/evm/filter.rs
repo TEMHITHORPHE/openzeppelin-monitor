@@ -9,7 +9,7 @@
 
 use alloy::core::dyn_abi::{DynSolType, DynSolValue, EventExt};
 use alloy::core::json_abi::{AbiItem, JsonAbi};
-use alloy::primitives::{keccak256, LogData, U64};
+use alloy::primitives::{LogData, U64};
 use async_trait::async_trait;
 use std::marker::PhantomData;
 use tracing::instrument;
@@ -259,11 +259,23 @@ impl<T> EVMBlockFilter<T> {
 									&function_signature_with_params,
 								) {
 									// Parse param types into DynSolType
-									let types: Vec<DynSolType> = function
-										.inputs
-										.iter()
-										.map(|p| p.selector_type().parse::<DynSolType>().unwrap())
-										.collect();
+									let types: Vec<DynSolType> =
+										match function
+											.inputs
+											.iter()
+											.map(|p| p.selector_type().parse::<DynSolType>())
+											.collect::<Result<Vec<_>, _>>()
+										{
+											Ok(types) => types,
+											Err(e) => {
+												FilterError::internal_error(
+												format!("Failed to parse function parameter types: {}", e),
+												None,
+												None,
+											);
+												return;
+											}
+										};
 
 									// Get bytes, drop selector
 									let mut raw = input_data.0.to_vec();
@@ -320,11 +332,7 @@ impl<T> EVMBlockFilter<T> {
 														args: Some(params.clone()),
 														hex_signature: Some(format!(
 															"0x{}",
-															hex::encode(
-																&keccak256(
-																	function.signature().as_bytes()
-																)[..4]
-															)
+															hex::encode(function.selector())
 														)),
 													});
 												}
@@ -351,8 +359,7 @@ impl<T> EVMBlockFilter<T> {
 												signature: function_signature_with_params.clone(),
 												args: Some(params.clone()),
 												hex_signature: Some(hex::encode(
-													&keccak256(function.signature().as_bytes())
-														[..4],
+													function.selector(),
 												)),
 											});
 										}
@@ -923,6 +930,7 @@ mod tests {
 	use super::*;
 	use alloy::core::dyn_abi::{DynSolValue, JsonAbiExt};
 	use alloy::core::json_abi::{Function, Param, StateMutability};
+	use alloy::primitives::keccak256;
 	use alloy::primitives::{Address, Bytes, B256, U256};
 	use serde_json::json;
 	use std::str::FromStr;
