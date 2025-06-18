@@ -225,7 +225,7 @@ impl<T> EVMBlockFilter<T> {
 							Err(e) => {
 								FilterError::internal_error(
 									format!("Failed to parse ABI for matching function: {}", e),
-									None,
+									Some(e.into()),
 									None,
 								);
 								return;
@@ -258,21 +258,22 @@ impl<T> EVMBlockFilter<T> {
 									&function_signature_with_params,
 								) {
 									// Parse selector types into DynSolType
-									let types: Vec<DynSolType> = match selector_types
-										.iter()
-										.map(|s| s.parse::<DynSolType>())
-										.collect::<Result<Vec<_>, _>>()
-									{
-										Ok(types) => types,
-										Err(e) => {
-											tracing::error!(
-												"Failed to parse function parameter types for {}: {}",
-												function.name,
-												e
+									let types: Vec<DynSolType> =
+										match selector_types
+											.iter()
+											.map(|s| s.parse::<DynSolType>())
+											.collect::<Result<Vec<_>, _>>()
+										{
+											Ok(types) => types,
+											Err(e) => {
+												FilterError::internal_error(
+												format!("Failed to parse function parameter types: {}", e),
+												Some(e.into()),
+												None,
 											);
-											return;
-										}
-									};
+												return;
+											}
+										};
 
 									// Get bytes, drop selector
 									let mut raw = input_data.0.to_vec();
@@ -526,7 +527,7 @@ impl<T> EVMBlockFilter<T> {
 					Err(e) => {
 						FilterError::internal_error(
 							format!("Failed to parse ABI for decoding events: {}", e),
-							None,
+							Some(e.into()),
 							None,
 						);
 						return None;
@@ -573,7 +574,7 @@ impl<T> EVMBlockFilter<T> {
 			Err(e) => {
 				FilterError::internal_error(
 					format!("Failed to decode log data: {:?}", e.to_string()),
-					None,
+					Some(e.into()),
 					None,
 				);
 				return None;
