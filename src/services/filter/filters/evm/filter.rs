@@ -241,16 +241,15 @@ impl<T> EVMBlockFilter<T> {
 							.functions()
 							.find(|f| f.selector().as_slice() == selector)
 						{
-							let function_signature_with_params = format!(
-								"{}({})",
-								function.name,
-								function
-									.inputs
-									.iter()
-									.map(|param| param.selector_type())
-									.collect::<Vec<_>>()
-									.join(",")
-							);
+							// Collect selector types once
+							let selector_types: Vec<String> = function
+								.inputs
+								.iter()
+								.map(|param| param.selector_type().to_string())
+								.collect();
+
+							let function_signature_with_params =
+								format!("{}({})", function.name, selector_types.join(","));
 
 							// Check each function condition
 							for condition in &monitor.match_conditions.functions {
@@ -258,24 +257,22 @@ impl<T> EVMBlockFilter<T> {
 									&condition.signature,
 									&function_signature_with_params,
 								) {
-									// Parse param types into DynSolType
-									let types: Vec<DynSolType> =
-										match function
-											.inputs
-											.iter()
-											.map(|p| p.selector_type().parse::<DynSolType>())
-											.collect::<Result<Vec<_>, _>>()
-										{
-											Ok(types) => types,
-											Err(e) => {
-												FilterError::internal_error(
-												format!("Failed to parse function parameter types: {}", e),
-												None,
-												None,
+									// Parse selector types into DynSolType
+									let types: Vec<DynSolType> = match selector_types
+										.iter()
+										.map(|s| s.parse::<DynSolType>())
+										.collect::<Result<Vec<_>, _>>()
+									{
+										Ok(types) => types,
+										Err(e) => {
+											tracing::error!(
+												"Failed to parse function parameter types for {}: {}",
+												function.name,
+												e
 											);
-												return;
-											}
-										};
+											return;
+										}
+									};
 
 									// Get bytes, drop selector
 									let mut raw = input_data.0.to_vec();
@@ -283,10 +280,11 @@ impl<T> EVMBlockFilter<T> {
 
 									// Decode all inputs at once
 									let func_type = DynSolType::Tuple(types.clone());
-									let decoded_all = match func_type
+									let decoded: Vec<DynSolValue> = match func_type
 										.abi_decode_params(&params_blob)
 									{
-										Ok(decoded) => decoded,
+										Ok(DynSolValue::Tuple(vals)) => vals,
+										Ok(val) => vec![val],
 										Err(e) => {
 											FilterError::internal_error(
 												format!("Failed to decode ABI parameters: {}", e),
@@ -295,12 +293,6 @@ impl<T> EVMBlockFilter<T> {
 											);
 											continue;
 										}
-									};
-
-									// Unpack into individual arguments
-									let decoded: Vec<DynSolValue> = match decoded_all {
-										DynSolValue::Tuple(vals) => vals,
-										val => vec![val],
 									};
 
 									let params: Vec<EVMMatchParamEntry> = function
