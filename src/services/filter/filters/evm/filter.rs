@@ -289,7 +289,7 @@ impl<T> EVMBlockFilter<T> {
 										Err(e) => {
 											FilterError::internal_error(
 												format!("Failed to decode ABI parameters: {}", e),
-												None,
+												Some(e.into()),
 												None,
 											);
 											continue;
