@@ -6,7 +6,6 @@
 
 use alloy::core::dyn_abi::DynSolValue;
 use alloy::primitives::{Address, B256, I256, U256};
-use serde_json::{Number, Value as JsonValue};
 use std::str::FromStr;
 
 /// Converts an B256 hash to its hexadecimal string representation.
@@ -133,8 +132,14 @@ pub fn format_token_value(token: &DynSolValue) -> String {
 			)
 		}
 		DynSolValue::Tuple(tuple) => {
-			let json_array = tuple.iter().map(dyn_value_to_json).collect::<Vec<_>>();
-			serde_json::Value::Array(json_array).to_string()
+			format!(
+				"({})",
+				tuple
+					.iter()
+					.map(dyn_value_to_string)
+					.collect::<Vec<String>>()
+					.join(",")
+			)
 		}
 		DynSolValue::Function(selector) => format!("0x{}", hex::encode(selector)),
 	}
@@ -146,40 +151,39 @@ pub fn format_token_value(token: &DynSolValue) -> String {
 /// * `val` - The DynSolValue to convert
 ///
 /// # Returns
-/// A serde_json::Value representing the DynSolValue
-pub fn dyn_value_to_json(val: &DynSolValue) -> JsonValue {
+/// A String representing the DynSolValue
+pub fn dyn_value_to_string(val: &DynSolValue) -> String {
 	match val {
-		DynSolValue::Bool(b) => JsonValue::Bool(*b),
-		DynSolValue::String(s) => JsonValue::String(s.clone()),
-		DynSolValue::Address(addr) => JsonValue::String(format!("0x{:x}", addr)),
-		DynSolValue::Uint(u, _) => {
-			let s = u.to_string();
-			if let Ok(num) = Number::from_str(&s) {
-				JsonValue::Number(num)
-			} else {
-				JsonValue::String(s)
-			}
-		}
-		DynSolValue::Int(i, _) => {
-			let s = i.to_string();
-			if let Ok(num) = Number::from_str(&s) {
-				JsonValue::Number(num)
-			} else {
-				JsonValue::String(s)
-			}
-		}
-		DynSolValue::FixedBytes(bytes, _) => JsonValue::String(format!("0x{}", hex::encode(bytes))),
-		DynSolValue::Bytes(bytes) => JsonValue::String(format!("0x{}", hex::encode(bytes))),
-		DynSolValue::Array(arr) => JsonValue::Array(arr.iter().map(dyn_value_to_json).collect()),
-		DynSolValue::FixedArray(arr) => {
-			JsonValue::Array(arr.iter().map(dyn_value_to_json).collect())
-		}
-		DynSolValue::Tuple(fields) => {
-			JsonValue::Array(fields.iter().map(dyn_value_to_json).collect())
-		}
-		DynSolValue::Function(selector) => {
-			JsonValue::String(format!("0x{}", hex::encode(selector)))
-		}
+		DynSolValue::Bool(b) => b.to_string(),
+		DynSolValue::String(s) => format!("\"{}\"", s),
+		DynSolValue::Address(addr) => format!("\"0x{:x}\"", addr),
+		DynSolValue::Uint(u, _) => u.to_string(),
+		DynSolValue::Int(i, _) => i.to_string(),
+		DynSolValue::FixedBytes(bytes, _) => format!("\"0x{}\"", hex::encode(bytes)),
+		DynSolValue::Bytes(bytes) => format!("\"0x{}\"", hex::encode(bytes)),
+		DynSolValue::Array(arr) => format!(
+			"[{}]",
+			arr.iter()
+				.map(dyn_value_to_string)
+				.collect::<Vec<String>>()
+				.join(",")
+		),
+		DynSolValue::FixedArray(arr) => format!(
+			"[{}]",
+			arr.iter()
+				.map(dyn_value_to_string)
+				.collect::<Vec<String>>()
+				.join(",")
+		),
+		DynSolValue::Tuple(fields) => format!(
+			"({})",
+			fields
+				.iter()
+				.map(dyn_value_to_string)
+				.collect::<Vec<String>>()
+				.join(",")
+		),
+		DynSolValue::Function(selector) => format!("\"0x{}\"", hex::encode(selector)),
 	}
 }
 
@@ -348,7 +352,7 @@ mod tests {
 		assert_eq!(string_to_i256("123"), Ok(I256::from_str("123").unwrap()));
 		assert_eq!(string_to_i256(I256_MAX_STR), Ok(I256::MAX));
 		assert_eq!(string_to_i256(I256_MIN_STR), Ok(I256::MIN));
-		assert_eq!(string_to_i256("-123"), Ok(I256::from_str("-123").unwrap()));
+		assert_eq!(string_to_i256("-123"), Ok(I256::try_from(-123).unwrap()));
 		assert_eq!(string_to_i256("-0"), Ok(I256::ZERO));
 
 		// --- Valid hex cases ---
@@ -529,7 +533,7 @@ mod tests {
 		];
 		assert_eq!(
 			format_token_value(&DynSolValue::Tuple(nested_tuple)),
-			"[\"transfer\",\"0x0123456789abcdef0123456789abcdef01234567\",1000]"
+			"(\"transfer\",\"0x0123456789abcdef0123456789abcdef01234567\",1000)"
 		);
 
 		// Test Function - represents function selector (4 bytes) + address (20 bytes)
@@ -549,65 +553,64 @@ mod tests {
 	}
 
 	#[test]
-	fn test_dyn_value_to_json() {
-		use serde_json::Number;
-
+	fn test_dyn_value_to_string() {
 		// Test Bool values
-		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Bool(true)),
-			JsonValue::Bool(true)
-		);
-		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Bool(false)),
-			JsonValue::Bool(false)
-		);
+		assert_eq!(dyn_value_to_string(&DynSolValue::Bool(true)), "true");
+		assert_eq!(dyn_value_to_string(&DynSolValue::Bool(false)), "false");
 
 		// Test String values
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::String("hello world".to_string())),
-			JsonValue::String("hello world".to_string())
+			dyn_value_to_string(&DynSolValue::String("hello world".to_string())),
+			"\"hello world\""
 		);
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::String("".to_string())),
-			JsonValue::String("".to_string())
+			dyn_value_to_string(&DynSolValue::String("".to_string())),
+			"\"\""
 		);
 
 		// Test Address values
 		let address =
 			Address::from_slice(&hex::decode("0123456789abcdef0123456789abcdef01234567").unwrap());
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Address(address)),
-			JsonValue::String("0x0123456789abcdef0123456789abcdef01234567".to_string())
+			dyn_value_to_string(&DynSolValue::Address(address)),
+			"\"0x0123456789abcdef0123456789abcdef01234567\""
 		);
 
-		// Test Uint values - small numbers that fit in JSON Number
+		// Test Uint values
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Uint(U256::from(0), 256)),
-			JsonValue::Number(Number::from(0))
+			dyn_value_to_string(&DynSolValue::Uint(U256::from(0), 256)),
+			"0"
 		);
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Uint(U256::from(123), 256)),
-			JsonValue::Number(Number::from(123))
+			dyn_value_to_string(&DynSolValue::Uint(U256::from(123), 256)),
+			"123"
 		);
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Uint(U256::from(u64::MAX), 256)),
-			JsonValue::Number(Number::from(u64::MAX))
+			dyn_value_to_string(&DynSolValue::Uint(U256::from(u64::MAX), 256)),
+			u64::MAX.to_string()
 		);
 
-		// Test Uint values - large numbers that get converted to scientific notation
+		// Test large Uint values
 		let large_uint = U256::MAX;
-		let result = dyn_value_to_json(&DynSolValue::Uint(large_uint, 256));
-		assert!(matches!(result, JsonValue::Number(_)));
-		// Verify it's the scientific notation representation
-		if let JsonValue::Number(num) = result {
-			assert_eq!(num.to_string(), "1.157920892373162e77");
-		}
+		let result = dyn_value_to_string(&DynSolValue::Uint(large_uint, 256));
+		assert_eq!(result, large_uint.to_string());
+
+		// Test Int values
+		assert_eq!(
+			dyn_value_to_string(&DynSolValue::Int(I256::try_from(0).unwrap(), 256)),
+			"0"
+		);
+		assert_eq!(
+			dyn_value_to_string(&DynSolValue::Int(I256::try_from(-123).unwrap(), 256)),
+			"-123"
+		);
+		assert_eq!(
+			dyn_value_to_string(&DynSolValue::Int(I256::try_from(456).unwrap(), 256)),
+			"456"
+		);
 
 		// Test Array values
-		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Array(vec![])),
-			JsonValue::Array(vec![])
-		);
+		assert_eq!(dyn_value_to_string(&DynSolValue::Array(vec![])), "[]");
 
 		let simple_array = vec![
 			DynSolValue::Bool(true),
@@ -615,12 +618,8 @@ mod tests {
 			DynSolValue::String("test".to_string()),
 		];
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Array(simple_array)),
-			JsonValue::Array(vec![
-				JsonValue::Bool(true),
-				JsonValue::Number(Number::from(42)),
-				JsonValue::String("test".to_string()),
-			])
+			dyn_value_to_string(&DynSolValue::Array(simple_array)),
+			"[true,42,\"test\"]"
 		);
 
 		// Test Tuple values
@@ -630,12 +629,8 @@ mod tests {
 			DynSolValue::Bool(false),
 		];
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Tuple(simple_tuple)),
-			JsonValue::Array(vec![
-				JsonValue::String("0x0123456789abcdef0123456789abcdef01234567".to_string()),
-				JsonValue::Number(Number::from(1000)),
-				JsonValue::Bool(false),
-			])
+			dyn_value_to_string(&DynSolValue::Tuple(simple_tuple)),
+			"(\"0x0123456789abcdef0123456789abcdef01234567\",1000,false)"
 		);
 
 		// Test nested structures
@@ -650,17 +645,8 @@ mod tests {
 			]),
 		];
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Array(nested_array)),
-			JsonValue::Array(vec![
-				JsonValue::Array(vec![
-					JsonValue::Number(Number::from(1)),
-					JsonValue::Number(Number::from(2)),
-				]),
-				JsonValue::Array(vec![
-					JsonValue::String("nested".to_string()),
-					JsonValue::Bool(true),
-				]),
-			])
+			dyn_value_to_string(&DynSolValue::Array(nested_array)),
+			"[[1,2],(\"nested\",true)]"
 		);
 
 		// Test that FixedArray behaves identically to Array
@@ -668,27 +654,31 @@ mod tests {
 			DynSolValue::Address(address),
 			DynSolValue::Uint(U256::from(999), 256),
 		];
-		let array_result = dyn_value_to_json(&DynSolValue::Array(test_data.clone()));
-		let fixed_array_result = dyn_value_to_json(&DynSolValue::FixedArray(test_data));
+		let array_result = dyn_value_to_string(&DynSolValue::Array(test_data.clone()));
+		let fixed_array_result = dyn_value_to_string(&DynSolValue::FixedArray(test_data));
 		assert_eq!(array_result, fixed_array_result);
+		assert_eq!(
+			array_result,
+			"[\"0x0123456789abcdef0123456789abcdef01234567\",999]"
+		);
 
 		// Test Bytes values
 		let empty_bytes = vec![];
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Bytes(empty_bytes)),
-			JsonValue::String("0x".to_string())
+			dyn_value_to_string(&DynSolValue::Bytes(empty_bytes)),
+			"\"0x\""
 		);
 
 		let some_bytes = vec![0xde, 0xad, 0xbe, 0xef];
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Bytes(some_bytes)),
-			JsonValue::String("0xdeadbeef".to_string())
+			dyn_value_to_string(&DynSolValue::Bytes(some_bytes)),
+			"\"0xdeadbeef\""
 		);
 
 		let longer_bytes = vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
 		assert_eq!(
-			dyn_value_to_json(&DynSolValue::Bytes(longer_bytes)),
-			JsonValue::String("0x0123456789abcdef".to_string())
+			dyn_value_to_string(&DynSolValue::Bytes(longer_bytes)),
+			"\"0x0123456789abcdef\""
 		);
 
 		// Test FixedBytes
@@ -696,8 +686,9 @@ mod tests {
 		fixed_bytes[0..4].copy_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
 		let fixed_bytes_val =
 			DynSolValue::FixedBytes(alloy::primitives::FixedBytes::<32>::from(fixed_bytes), 4);
-		let fixed_bytes_result = dyn_value_to_json(&fixed_bytes_val);
-		assert!(matches!(fixed_bytes_result, JsonValue::String(_)));
+		let fixed_bytes_result = dyn_value_to_string(&fixed_bytes_val);
+		assert!(fixed_bytes_result.starts_with("\"0x"));
+		assert!(fixed_bytes_result.ends_with("\""));
 
 		// Test Function
 		let function_bytes = [
@@ -705,7 +696,9 @@ mod tests {
 			0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67,
 		];
 		let function_val = DynSolValue::Function(alloy::primitives::Function::from(function_bytes));
-		let function_result = dyn_value_to_json(&function_val);
-		assert!(matches!(function_result, JsonValue::String(_)));
+		let function_result = dyn_value_to_string(&function_val);
+		assert!(function_result.starts_with("\"0x"));
+		assert!(function_result.ends_with("\""));
+		assert_eq!(function_result.len(), 52); // "0x" + 48 hex chars + 2 quotes
 	}
 }
