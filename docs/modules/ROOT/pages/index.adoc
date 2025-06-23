@@ -1479,8 +1479,8 @@ Expressions allow for condition checking of function arguments, event parameters
 
 | Tuple (EVM)
 | Ordered list represented as a JSON array string (e.g., `'["Alice", 0x1234..., 25, true, [12,34]]'`).
-| `contains`
-| Only the `contains` operator is supported for tuple filtering. The `contains` operation performs a case-insensitive deep search through all tuple elements.
+| `contains`, `==`, `!=`
+| The `contains` operation performs a case-insensitive deep search through all tuple elements. `==` and `!=` perform comparisons against the entire tuple values. See "Operations on Complex Types" for details.
 
 |===
 
@@ -1580,6 +1580,8 @@ When an EVM parameter is an array (often represented internally or configured wi
 *Tuple Operations (`kind: "tuple"`)*
 
 - `tuple_param contains 'value'` checks if the string `'value'` exists within the tuple.
+- `tuple_param == (12, "hello", "testing", 34)` checks if the tuple is equal.
+- `tuple_param != (12, "hello", "testing", 34)` checks if the tuple is not equal.
 
 Where `tuple_param` is the name of tuple param (we should have only one param for tuples).
 
