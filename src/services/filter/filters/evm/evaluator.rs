@@ -2507,6 +2507,15 @@ mod tests {
 				&LiteralValue::Str(lhs_tuple)
 			)
 			.unwrap());
+
+		let lhs_tuple_nested = r#"(12, "title", ["testing","value"],14, (12, "testing value"))"#;
+		assert!(evaluator
+			.compare_tuple(
+				lhs_tuple_nested,
+				&ComparisonOperator::Eq,
+				&LiteralValue::Str(lhs_tuple_nested)
+			)
+			.unwrap());
 	}
 
 	#[test]
