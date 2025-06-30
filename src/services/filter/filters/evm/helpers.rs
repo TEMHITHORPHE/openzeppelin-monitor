@@ -117,7 +117,7 @@ pub fn format_token_value(token: &DynSolValue) -> String {
 			format!(
 				"[{}]",
 				arr.iter()
-					.map(format_token_value)
+					.map(dyn_value_to_string)
 					.collect::<Vec<String>>()
 					.join(",")
 			)
@@ -126,7 +126,7 @@ pub fn format_token_value(token: &DynSolValue) -> String {
 			format!(
 				"[{}]",
 				arr.iter()
-					.map(format_token_value)
+					.map(dyn_value_to_string)
 					.collect::<Vec<String>>()
 					.join(",")
 			)
