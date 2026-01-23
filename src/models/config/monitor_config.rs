@@ -276,7 +276,6 @@ mod tests {
 	};
 	use std::collections::HashMap;
 	use tempfile::TempDir;
-	use tracing_test::traced_test;
 
 	#[tokio::test]
 	async fn test_load_valid_monitor() {

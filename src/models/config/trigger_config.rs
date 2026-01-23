@@ -630,7 +630,7 @@ impl ConfigLoader for Trigger {
 				}
 			}
 			TriggerTypeConfig::Telegram { .. } => {}
-			TriggerTypeConfig::Script { script_path, .. } => {
+			TriggerTypeConfig::Script { .. } => {
 				// Check script file permissions on Unix systems
 				#[cfg(unix)]
 				{
@@ -709,7 +709,6 @@ mod tests {
 	use crate::models::{core::Trigger, ScriptLanguage, SecretString};
 	use crate::utils::tests::builders::trigger::TriggerBuilder;
 	use crate::utils::RetryConfig;
-	use std::{fs::File, io::Write, os::unix::fs::PermissionsExt};
 	use tempfile::TempDir;
 	use tracing_test::traced_test;
 

@@ -12,6 +12,7 @@ use openzeppelin_monitor::{
 	},
 };
 use proptest::{option, prelude::*};
+#[cfg(unix)]
 use std::os::unix::prelude::ExitStatusExt;
 
 const MIN_COLLECTION_SIZE: usize = 0;
@@ -358,7 +359,10 @@ pub fn process_output_strategy() -> impl Strategy<Value = std::process::Output> 
 
 	(stdout_strategy, stderr_strategy, prop::bool::ANY).prop_map(|(stdout, stderr, success)| {
 		std::process::Output {
+			#[cfg(unix)]
 			status: ExitStatusExt::from_raw(if success { 0 } else { 1 }),
+			#[cfg(windows)]
+			status: std::os::windows::process::ExitStatusExt::from_raw(if success { 0 } else { 1 }),
 			stdout: stdout.into_bytes(),
 			stderr: stderr.into_bytes(),
 		}
