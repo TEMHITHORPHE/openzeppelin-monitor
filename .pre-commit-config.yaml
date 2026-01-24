@@ -22,7 +22,7 @@ repos:
         types: [rust]
       - id: clippy
         name: clippy
-        entry: cargo clippy --all-targets --all-features -- -D warnings --cap-lints allow
+        entry: cargo clippy --all-targets --all-features -- -D warnings
         pass_filenames: false
         language: system
   - repo: https://github.com/pre-commit/pre-commit-hooks
