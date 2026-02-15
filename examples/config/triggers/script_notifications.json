@@ -6,7 +6,7 @@
       "language": "Bash",
       "script_path": "./config/triggers/scripts/custom_notification.sh",
       "arguments": ["--verbose"],
-      "runtime_flags": ["--max-old-space-size=2048"],
+      "runtime_flags": ["-q"],
       "timeout_ms": 1000
     }
   }

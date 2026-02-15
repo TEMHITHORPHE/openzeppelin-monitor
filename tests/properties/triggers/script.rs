@@ -77,7 +77,7 @@ proptest! {
 	) {
 		let output = std::process::Output {
 			#[cfg(unix)]
-			status: std::process::ExitStatus::from_raw(exit_code),
+			status: std::process::ExitStatus::from_raw(exit_code << 8),
 			#[cfg(windows)]
 			status: std::os::windows::process::ExitStatusExt::from_raw(exit_code as u32),	// No underflow as `exit_code` between 1 >= exit_code <= 255
 			stdout: Vec::new(),
@@ -132,8 +132,8 @@ proptest! {
 		let output_content = lines.join("\n");
 
 		let output = std::process::Output {
-			#[cfg(unix)]
-			status: std::process::ExitStatus::from_raw(exit_code),
+		#[cfg(unix)]
+			status: std::process::ExitStatus::from_raw(exit_code << 8), // Unix: exit_code << 8 converts exit code to wait status format
 			#[cfg(windows)]
 			status: std::os::windows::process::ExitStatusExt::from_raw(exit_code as u32),	// No underflow as: 1 >= exit_code <= 255
 			stdout: output_content.into_bytes(),

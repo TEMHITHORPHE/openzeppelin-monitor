@@ -5,6 +5,7 @@
  * Input: JSON object containing:
  *   - monitor_match: The monitor match data with transaction details
  *   - args: Additional arguments passed to the script (optional)
+ *   - runtime_flags: Runtime flags passed to underlying JS runtime (node, bun etc.) (optional)
  *
  * Note: Only stderr output is monitored. If the script returns a non-zero exit code, the error will be logged.
  */

@@ -362,7 +362,7 @@ pub fn process_output_strategy() -> impl Strategy<Value = std::process::Output> 
 	(stdout_strategy, stderr_strategy, prop::bool::ANY).prop_map(|(stdout, stderr, success)| {
 		std::process::Output {
 			#[cfg(unix)]
-			status: ExitStatusExt::from_raw(if success { 0 } else { 1 }),
+			status: ExitStatusExt::from_raw(if success { 0 } else { 1 << 8 }), // Unix: exit_code << 8 converts exit code to wait status format
 			#[cfg(windows)]
 			status: std::os::windows::process::ExitStatusExt::from_raw(if success { 0 } else { 1 }),
 			stdout: stdout.into_bytes(),

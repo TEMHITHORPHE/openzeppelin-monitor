@@ -56,7 +56,7 @@ impl ScriptExecutor for PythonScriptExecutor {
 		let combined_input = serde_json::json!({
 			"monitor_match": input,
 			"args": args,
-			"runtime_flags": runtime_flags
+			"runtime_flags": runtime_flags.unwrap_or(&[])
 		});
 		let input_json = serde_json::to_string(&combined_input)
 			.with_context(|| "Failed to serialize monitor match and arguments")?;
@@ -139,7 +139,7 @@ impl ScriptExecutor for BashScriptExecutor {
 		let combined_input = serde_json::json!({
 			"monitor_match": input,
 			"args": args,
-			"runtime_flags": runtime_flags
+			"runtime_flags": runtime_flags.unwrap_or(&[])
 		});
 
 		let input_json = serde_json::to_string(&combined_input)
@@ -469,14 +469,14 @@ print("true")
             console.log("CONSOLE_LOG_ExecArgv=", process.execArgv);
 
             // Check if expected arguments are present
-            const foundArgs = expected_flags.every(arg => process.execArgv.includes(arg));
+            const found_flags = expected_flags.every(flag => process.execArgv.includes(flag));
 
             // Assert that expected arguments are present
-            if (!foundArgs) {
-              console.log('CONSOLE_LOG: Expected arguments were not found in process.execArgv');
+            if (!found_flags) {
+              console.log('CONSOLE_LOG: Expected flags were not found in process.execArgv');
               console.log("false");
             } else {
-              console.log("CONSOLE_LOG_: Expected arguments found");
+              console.log("CONSOLE_LOG_: Expected flags found");
               console.log("true");
             }
 		})();
@@ -499,7 +499,86 @@ print("true")
 				false,
 			)
 			.await;
-		println!("Result: {:?}", result);
+		assert!(result.is_ok());
+		assert!(result.unwrap());
+	}
+
+	#[tokio::test]
+	async fn test_python_script_executor_runtime_flags_success() {
+		let script_content = r#"
+import sys
+
+# -q -> sys.flags.quiet
+# -O -> sys.flags.optimize
+# -B -> sys.flags.dont_write_bytecode
+
+verified = all([
+    sys.flags.quiet == 1,
+    sys.flags.optimize >= 1,
+    sys.flags.dont_write_bytecode == 1
+])
+
+if verified:
+    print("true")
+else:
+    print("false")
+"#;
+
+		let executor = PythonScriptExecutor {
+			script_content: script_content.to_string(),
+		};
+
+		let input = create_mock_monitor_match();
+		let result = executor
+			.execute(
+				input,
+				&5000,
+				None,
+				Some(&[
+					"-q".to_string(), // -q "quiet", doesn't add any extra text to stdout or stderr
+					"-O".to_string(), // -O "Optimize", Removes asserts (Level 1)
+					"-B".to_string(), // -B "No bytecode", Don't write .pyc files
+				]),
+				false,
+			)
+			.await;
+		assert!(result.is_ok());
+		assert!(result.unwrap());
+	}
+
+	#[tokio::test]
+	async fn test_bash_script_executor_runtime_flags_success() {
+		let script_content = r#"
+#!/bin/bash
+# This test should be run with `bash -ef -c <script-content>`
+# $- contains all currently enabled flags as a string
+
+echo "DEBUG_flags=$-"
+
+if [[ $- == *e* && $- == *f* ]]; then
+    echo "true"
+else
+    echo "false"
+fi
+"#;
+
+		let executor = BashScriptExecutor {
+			script_content: script_content.to_string(),
+		};
+
+		let input = create_mock_monitor_match();
+		let result = executor
+			.execute(
+				input,
+				&5000,
+				None,
+				Some(&[
+					"-f".to_string(), // Prevents * from expanding to filenames (disables globbing)
+					"-e".to_string(), // Exit on error
+				]),
+				false,
+			)
+			.await;
 		assert!(result.is_ok());
 		assert!(result.unwrap());
 	}

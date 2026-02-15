@@ -630,7 +630,6 @@ impl ConfigLoader for Trigger {
 				}
 			}
 			TriggerTypeConfig::Telegram { .. } => {}
-			#[allow(unused_variables)]
 			TriggerTypeConfig::Script { script_path, .. } => {
 				// Check script file permissions on Unix systems
 				#[cfg(unix)]
@@ -647,6 +646,8 @@ impl ConfigLoader for Trigger {
 						}
 					}
 				}
+				// Silence unused variable warning on non-Unix platforms
+				let _ = &script_path;
 			}
 			TriggerTypeConfig::Email { port, .. } => {
 				let secure_ports = [993, 587, 465];
@@ -1155,6 +1156,8 @@ mod tests {
 	#[tokio::test]
 	#[cfg(unix)] // This test is Unix-specific due to permission handling
 	async fn test_load_all_unreadable_file() {
+		use std::fs::File;
+
 		// Create a temporary directory for our test
 		let temp_dir = TempDir::new().unwrap();
 		let config_dir = temp_dir.path().join("triggers");
@@ -1163,7 +1166,7 @@ mod tests {
 		// Create a JSON file with valid content but unreadable permissions
 		let file_path = config_dir.join("unreadable.json");
 		{
-			let mut file = std::fs::File::create(&file_path).unwrap();
+			let mut file = File::create(&file_path).unwrap();
 			writeln!(file, r#"{{ "test_trigger": {{ "name": "test", "trigger_type": "Slack", "config": {{ "slack_url": "https://hooks.slack.com/services/xxx", "message": {{ "title": "Alert", "body": "Test message" }} }} }} }}"#).unwrap();
 		}
 
